@@ -1,5 +1,6 @@
+#!/bin/sh
 waypaper --restore &
-waybar -c ./waybar/config -s ./waybar/style.css &
+waybar -c ./waybar/config &
 
 wl-paste --watch cliphist store &
 
