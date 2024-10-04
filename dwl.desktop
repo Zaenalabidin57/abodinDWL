@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=dwl
-Comment=dwm for Wayland
-Exec=dwl
+Name=dinwl
+Comment=Abodin Windows Manager
+Exec=/home/shigure/shigure/dwl/scripts/run.sh
 Type=Application
