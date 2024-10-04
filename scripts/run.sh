@@ -4,7 +4,7 @@ waybar -c ./waybar/config &
 
 wl-paste --watch cliphist store &
 
-exec-once = /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
+/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
 
 mako &
 
