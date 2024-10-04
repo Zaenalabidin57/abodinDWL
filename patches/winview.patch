@@ -1,0 +1,42 @@
+diff --git a/config.def.h b/config.def.h
+index 22d2171..b812525 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -143,6 +143,7 @@ static const Key keys[] = {
+ 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_space,      togglefloating, {0} },
+ 	{ MODKEY,                    XKB_KEY_e,         togglefullscreen, {0} },
+ 	{ MODKEY,                    XKB_KEY_0,          view,           {.ui = ~0} },
++	{ MODKEY,                    XKB_KEY_o,          winview,        {0}},
+ 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_parenright, tag,            {.ui = ~0} },
+ 	{ MODKEY,                    XKB_KEY_comma,      focusmon,       {.i = WLR_DIRECTION_LEFT} },
+ 	{ MODKEY,                    XKB_KEY_period,     focusmon,       {.i = WLR_DIRECTION_RIGHT} },
+diff --git a/dwl.c b/dwl.c
+index dc0c861..5c6862c 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -351,6 +351,7 @@ static void urgent(struct wl_listener *listener, void *data);
+ static void view(const Arg *arg);
+ static void virtualkeyboard(struct wl_listener *listener, void *data);
+ static void virtualpointer(struct wl_listener *listener, void *data);
++static void winview(const Arg *a);
+ static Monitor *xytomon(double x, double y);
+ static void xytonode(double x, double y, struct wlr_surface **psurface,
+ 		Client **pc, LayerSurface **pl, double *nx, double *ny);
+@@ -2942,6 +2943,17 @@ virtualpointer(struct wl_listener *listener, void *data)
+ 		wlr_cursor_map_input_to_output(cursor, device, event->suggested_output);
+ }
+ 
++void
++winview(const Arg *a) {
++	Arg b = {0};
++	Client *sel = focustop(selmon);
++	if(!sel)
++		return;
++	b.ui = sel -> tags;
++	view(&b);
++	return;
++}
++
+ Monitor *
+ xytomon(double x, double y)
+ {
