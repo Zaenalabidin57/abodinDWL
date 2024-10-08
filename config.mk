@@ -12,6 +12,6 @@ DATADIR = $(PREFIX)/share
 #XLIBS =
 # Uncomment to build XWayland support
 XWAYLAND = -DXWAYLAND
-XLIBS = xcb xcb-icccm
+XLIBS = xcb xcb-icccm #xcb-util xcb-util-wm xcb-cursor xcb-keysyms
 
-CC = gcc
+CC = cc

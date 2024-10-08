@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=dwl
+Name=AbuDWL
 Comment=dwm for Wayland
-Exec=dwl
+Exec=/home/shigure/shigure/dwl/scripts/run.sh
 Type=Application
