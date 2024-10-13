@@ -3363,6 +3363,17 @@ warpcursor(const Client *c) {
 			  c->geom.y + c->geom.height / 2.0);
 }
 
+void
+winview(const Arg *a) {
+	Arg b = {0};
+	Client *sel = focustop(selmon);
+	if(!sel)
+		return;
+	b.ui = sel -> tags;
+	view(&b);
+	return;
+}
+
 Monitor *
 xytomon(double x, double y)
 {
