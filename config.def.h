@@ -8,8 +8,8 @@
 static const int sloppyfocus               = 1;  /* focus follows mouse */
 static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will disable idle tracking even if it's surface isn't visible  */
 static const unsigned int borderpx         = 1;  /* border pixel of windows */
-static const int showbar                   = 1; /* 0 means no bar */
-static const int topbar                    = 1; /* 0 means bottom bar */
+static const int showbar                   = 0; /* 0 means no bar */
+static const int topbar                    = 0; /* 0 means bottom bar */
 static const char *fonts[]                 = {"Monocraft Nerd Font:style:Light:size=12"};
 static const float rootcolor[]             = COLOR(0x001E1D2D);
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
@@ -31,9 +31,12 @@ static int log_level = WLR_ERROR;
 /* Autostart */
 static const char *const autostart[] = {
         "sh", "-c" , "swaybg -i ~/Pictures/wollpeper/naviko.jpg", NULL,
-        "/usr/lib/polkit-kde-authentication-agent-1", NULL,
+        "/usr/lib/hyprpolkitagent", NULL,
+        "/usr/lib/xdg-desktop-portal-hyprland", NULL,
         "sh", "-c" , "mako", NULL,
         "sh", "-c" , "wl-paste --watch cliphist store", NULL,
+        //"zsh", "-c" , "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP", NULL,
+        //"zsh", "-c" , "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP", NULL,
         NULL /* terminate */
 };
 
@@ -58,9 +61,9 @@ static const Rule rules[] = {
 /* layout(s) */
 static const Layout layouts[] = {
 	/* symbol     arrange function */
+	{ "><>",      NULL },    /* no layout function means floating behavior */
 	{ "[]=",      tile },
 	{ "[M]",      monocle },
-	{ "><>",      NULL },    /* no layout function means floating behavior */
 };
 
 /* monitors */
@@ -75,8 +78,8 @@ static const MonitorRule monrules[] = {
 	{ "eDP-1",    0.5f,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
 	*/
 	/* defaults */
-	{ "eDP-1",    0.5,  1,      1,    &layouts[1], WL_OUTPUT_TRANSFORM_NORMAL,   -1, -1  },
-	{ "HDMI-A-1",    0.5,  1,      1,    &layouts[1], WL_OUTPUT_TRANSFORM_NORMAL,   1920, 0  },
+	{ "eDP-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1, -1  },
+	{ "HDMI-A-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   1920, 0  },
 };
 
 /* keyboard */
@@ -158,7 +161,7 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
 /* commands */
-static const char *termcmd[] = { "kitty", NULL };
+static const char *termcmd[] = { "st", NULL };
 static const char *menucmd[] = { "wofi", NULL };
 
 static const Key keys[] = {
@@ -177,6 +180,7 @@ static const Key keys[] = {
 
 	{ MODKEY,                    XKB_KEY_d,          spawn,          {.v = menucmd} },
 	{ MODKEY, XKB_KEY_Return,     spawn,          {.v = termcmd} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_P,     togglebar,          {0} },
 	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_J,          movestack,     {.i = +1} },
@@ -184,7 +188,7 @@ static const Key keys[] = {
       { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("firefox")},
     { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("thunar")},
     { MODKEY,                           XKB_KEY_Print,  spawn,            SHCMD("~/shigure/dwl/scripts/shot.sh")},
-    { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("kitty /home/shigure/.config/hypr/exit.sh")},
+    { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("st /home/shigure/.config/hypr/exit.sh")},
     { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
     { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },

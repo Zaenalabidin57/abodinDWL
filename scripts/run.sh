@@ -1,6 +1,6 @@
 #!/bin/sh
 #slstatus -s | dwl &
-/home/shigure/shigure/dwl/scripts/bar.sh | dwl &
+/home/shigure/shigure/dwl/scripts/bar.sh | dbus-run-session dwl &
 #waypaper --restore &
 #waybar -c ./waybar/config &
 
