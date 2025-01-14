@@ -30,7 +30,7 @@ static int log_level = WLR_ERROR;
 
 /* Autostart */
 static const char *const autostart[] = {
-        "sh", "-c" , "swaybg -i ~/Pictures/nenen.jpeg -m fill", NULL,
+        "sh", "-c" , "swaybg -i ~/Pictures/plana.png -m fill", NULL,
         "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
         "sh", "-c" , "mako", NULL,
         "sh", "-c" , "wl-paste --watch cliphist store", NULL,
