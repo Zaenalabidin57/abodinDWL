@@ -30,10 +30,12 @@ static int log_level = WLR_ERROR;
 
 /* Autostart */
 static const char *const autostart[] = {
-        "sh", "-c" , "swaybg -i ~/Pictures/plana.png -m fill", NULL,
+        "sh", "-c" , "swaybg -i ~/Pictures/wollpeper/plana.png -m fill", NULL,
         "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
         "sh", "-c" , "mako", NULL,
         "sh", "-c" , "wl-paste --watch cliphist store", NULL,
+        "sh", "-c" , "/usr/bin/kdeconnectd", NULL,
+        "sh", "-c" , "/usr/bin/kdeconnect-indicator", NULL,
         //"zsh", "-c" , "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP", NULL,
         //"zsh", "-c" , "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP", NULL,
         NULL /* terminate */
@@ -204,8 +206,10 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_space,      setlayout,      {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_space,      togglefloating, {0} },
 	{ MODKEY,                    XKB_KEY_f,         togglefullscreen, {0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_S,         addscratchpad, {0} },
+	{ MODKEY,                    XKB_KEY_s,        togglescratchpad, {0} },
+	{ MODKEY,                    XKB_KEY_w,        togglescratchpad, {0} },
 	{ MODKEY,                    XKB_KEY_0,          view,           {.ui = ~0} },
-	/*{ MODKEY,                    XKB_KEY_s,          winview,        {0}}, */
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_parenright, tag,            {.ui = ~0} },
 	{ MODKEY,                    XKB_KEY_comma,      focusmon,       {.i = WLR_DIRECTION_LEFT} },
 	{ MODKEY,                    XKB_KEY_period,     focusmon,       {.i = WLR_DIRECTION_RIGHT} },

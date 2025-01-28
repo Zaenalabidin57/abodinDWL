@@ -1,6 +1,6 @@
 #!/bin/sh
 #slstatus -s | dwl &
-/home/shigure/shigure/AbodinDWL/scripts/bar.sh | dwl &
+/home/shigure/shigure/AbodinDWL/scripts/bar.sh | dwl
 #waypaper --restore &
 #waybar -c ./waybar/config &
 
