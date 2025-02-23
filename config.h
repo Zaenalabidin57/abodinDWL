@@ -62,8 +62,8 @@ static const Rule rules[] = {
 /* layout(s) */
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "><>",      NULL },    /* no layout function means floating behavior */
 	{ "[]=",      tile },
+	{ "><>",      NULL },    /* no layout function means floating behavior */
 	{ "[M]",      monocle },
 };
 
@@ -77,10 +77,11 @@ static const MonitorRule monrules[] = {
 	/* name       mfact  nmaster scale layout       rotate/reflect                x    y */
 	/* example of a HiDPI laptop monitor:
 	{ "eDP-1",    0.5f,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
-	*/
+	*
 	/* defaults */
-	{ "eDP-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1, -1  },
-	{ "HDMI-A-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   1920, 0  },
+	//{ "eDP-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1, -1  },
+	//{ "HDMI-A-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   1920, 0  },
+	{ "eDP-1",    0.5f,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
 };
 
 /* keyboard */
@@ -162,8 +163,8 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
 /* commands */
-static const char *termcmd[] = { "st", NULL };
-static const char *menucmd[] = { "rofi -show drun", NULL };
+static const char *termcmd[] = { "foot", NULL };
+//static const char *menucmd[] = { "rofi -show drun", NULL };
 
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
@@ -189,8 +190,8 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
       { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("zen-browser")},
     { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("thunar")},
-    { MODKEY,                           XKB_KEY_Print,  spawn,            SHCMD("~/shigure/dwl/scripts/shot.sh")},
-    { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("st /home/shigure/exit.sh")},
+    { MODKEY,                           XKB_KEY_Print,  spawn,            SHCMD("~/.config/scripts/skrinsut.sh")},
+    { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("foot /home/shigure/exit.sh")},
     { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
     { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },

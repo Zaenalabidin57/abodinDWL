@@ -34,8 +34,8 @@ static const char *const autostart[] = {
         "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
         "sh", "-c" , "mako", NULL,
         "sh", "-c" , "wl-paste --watch cliphist store", NULL,
-        "sh", "-c" , "/usr/bin/kdeconnectd", NULL,
-        "sh", "-c" , "/usr/bin/kdeconnect-indicator", NULL,
+        //"sh", "-c" , "/usr/bin/kdeconnectd", NULL,
+        //"sh", "-c" , "/usr/bin/kdeconnect-indicator", NULL,
         //"zsh", "-c" , "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP", NULL,
         //"zsh", "-c" , "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP", NULL,
         NULL /* terminate */
@@ -62,8 +62,8 @@ static const Rule rules[] = {
 /* layout(s) */
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "[]=",      tile },
 	{ "><>",      NULL },    /* no layout function means floating behavior */
+	{ "[]=",      tile },
 	{ "[M]",      monocle },
 };
 
@@ -77,11 +77,10 @@ static const MonitorRule monrules[] = {
 	/* name       mfact  nmaster scale layout       rotate/reflect                x    y */
 	/* example of a HiDPI laptop monitor:
 	{ "eDP-1",    0.5f,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
-	*
+	*/
 	/* defaults */
-	//{ "eDP-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1, -1  },
-	//{ "HDMI-A-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   1920, 0  },
-	{ "eDP-1",    0.5f,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
+	{ "eDP-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1, -1  },
+	{ "HDMI-A-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   1920, 0  },
 };
 
 /* keyboard */
@@ -164,7 +163,7 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 
 /* commands */
 static const char *termcmd[] = { "foot", NULL };
-//static const char *menucmd[] = { "rofi -show drun", NULL };
+static const char *menucmd[] = { "rofi -show drun", NULL };
 
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
@@ -190,8 +189,8 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
       { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("zen-browser")},
     { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("thunar")},
-    { MODKEY,                           XKB_KEY_Print,  spawn,            SHCMD("~/.config/scripts/skrinsut.sh")},
-    { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("foot /home/shigure/exit.sh")},
+    { MODKEY,                           XKB_KEY_Print,  spawn,            SHCMD("~/shigure/dwl/scripts/shot.sh")},
+    { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("st /home/shigure/exit.sh")},
     { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
     { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },
@@ -209,7 +208,7 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_f,         togglefullscreen, {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_S,         addscratchpad, {0} },
 	{ MODKEY,                    XKB_KEY_s,        togglescratchpad, {0} },
-	{ MODKEY,                    XKB_KEY_w,        togglescratchpad, {0} },
+	{ MODKEY,                    XKB_KEY_w,        removescratchpad, {0} },
 	{ MODKEY,                    XKB_KEY_0,          view,           {.ui = ~0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_parenright, tag,            {.ui = ~0} },
 	{ MODKEY,                    XKB_KEY_comma,      focusmon,       {.i = WLR_DIRECTION_LEFT} },
