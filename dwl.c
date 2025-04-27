@@ -1,6 +1,7 @@
 /*
  * See LICENSE file for copyright and license details.
  */
+#include <dbus/dbus.h>
 #include <getopt.h>
 #include <libinput.h>
 #include <linux/input-event-codes.h>
@@ -71,6 +72,9 @@
 
 #include "util.h"
 #include "drwl.h"
+#include "dbus.h"
+#include "systray/tray.h"
+#include "systray/watcher.h"
 
 /* macros */
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
@@ -89,7 +93,7 @@ enum { SchemeNorm, SchemeSel, SchemeUrg }; /* color schemes */
 enum { CurNormal, CurPressed, CurMove, CurResize }; /* cursor */
 enum { XDGShell, LayerShell, X11 }; /* client types */
 enum { LyrBg, LyrBottom, LyrTile, LyrFloat, LyrTop, LyrFS, LyrOverlay, LyrBlock, NUM_LAYERS }; /* scene layers */
-enum { ClkTagBar, ClkLtSymbol, ClkStatus, ClkTitle, ClkClient, ClkRoot }; /* clicks */
+enum { ClkTagBar, ClkLtSymbol, ClkStatus, ClkTitle, ClkClient, ClkRoot, ClkTray }; /* clicks */
 #ifdef XWAYLAND
 enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
@@ -140,7 +144,6 @@ typedef struct {
 #ifdef XWAYLAND
 	struct wl_listener activate;
 	struct wl_listener associate;
-	struct wl_listener minimize;
 	struct wl_listener dissociate;
 	struct wl_listener configure;
 	struct wl_listener set_hints;
@@ -149,7 +152,6 @@ typedef struct {
 	uint32_t tags;
 	int isfloating, isurgent, isfullscreen;
 	uint32_t resize; /* configure serial of a pending resize */
-	struct wl_list link_temp;
 } Client;
 
 typedef struct {
@@ -220,6 +222,7 @@ struct Monitor {
 		int real_width, real_height; /* non-scaled */
 		float scale;
 	} b; /* bar area */
+	Tray *tray;
 	struct wlr_box w; /* window area, layout-relative */
 	struct wl_list layers[4]; /* LayerSurface.link */
 	const Layout *lt[2];
@@ -260,6 +263,11 @@ typedef struct {
 } Rule;
 
 typedef struct {
+	const char *variable;
+	const char *value;
+} Env;
+
+typedef struct {
 	struct wlr_scene_tree *scene;
 
 	struct wlr_session_lock_v1 *lock;
@@ -269,7 +277,6 @@ typedef struct {
 } SessionLock;
 
 /* function declarations */
-static void addscratchpad(const Arg *arg);
 static void applybounds(Client *c, struct wlr_box *bbox);
 static void applyrules(Client *c);
 static void arrange(Monitor *m);
@@ -354,7 +361,6 @@ static void pointerfocus(Client *c, struct wlr_surface *surface,
 static void powermgrsetmode(struct wl_listener *listener, void *data);
 static void quit(const Arg *arg);
 static void rendermon(struct wl_listener *listener, void *data);
-static void removescratchpad(const Arg *arg);
 static void requestdecorationmode(struct wl_listener *listener, void *data);
 static void requeststartdrag(struct wl_listener *listener, void *data);
 static void requestmonstate(struct wl_listener *listener, void *data);
@@ -380,9 +386,11 @@ static void tile(Monitor *m);
 static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
-static void togglescratchpad(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
+static void trayactivate(const Arg *arg);
+static void traymenu(const Arg *arg);
+static void traynotify(void *data);
 static void unlocksession(struct wl_listener *listener, void *data);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
@@ -393,7 +401,6 @@ static void urgent(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static void virtualkeyboard(struct wl_listener *listener, void *data);
 static void virtualpointer(struct wl_listener *listener, void *data);
-static void warpcursor(const Client *c);
 static Monitor *xytomon(double x, double y);
 static void xytonode(double x, double y, struct wlr_surface **psurface,
 		Client **pc, LayerSurface **pl, double *nx, double *ny);
@@ -459,14 +466,15 @@ static Monitor *selmon;
 static char stext[256];
 static struct wl_event_source *status_event_source;
 
+static DBusConnection *bus_conn;
+static struct wl_event_source *bus_source;
+static Watcher watcher;
+
 static const struct wlr_buffer_impl buffer_impl = {
     .destroy = bufdestroy,
     .begin_data_ptr_access = bufdatabegin,
     .end_data_ptr_access = bufdataend,
 };
-
-static struct wl_list scratchpad_clients;
-static int scratchpad_visible = 1;
 
 #ifdef XWAYLAND
 static void activatex11(struct wl_listener *listener, void *data);
@@ -475,7 +483,6 @@ static void configurex11(struct wl_listener *listener, void *data);
 static void createnotifyx11(struct wl_listener *listener, void *data);
 static void dissociatex11(struct wl_listener *listener, void *data);
 static xcb_atom_t getatom(xcb_connection_t *xc, const char *name);
-static void minimizenotify(struct wl_listener *listener, void *data);
 static void sethints(struct wl_listener *listener, void *data);
 static void xwaylandready(struct wl_listener *listener, void *data);
 static struct wlr_xwayland *xwayland;
@@ -490,65 +497,6 @@ static xcb_atom_t netatom[NetLast];
 
 static pid_t *autostart_pids;
 static size_t autostart_len;
-
-//#include "simple_scratchpad.c"
-//langsung implementasi disini
-void
-addscratchpad(const Arg *arg)
-{
-	Client *cc, *c = focustop(selmon);
-
-	if (!c)
-		return;
-	/* Check if the added client is already a scratchpad client */
-	wl_list_for_each(cc, &scratchpad_clients, link_temp) {
-		if (cc == c)
-			return;
-	}
-	if (!c->isfloating) {
-		setfloating(c, 1);
-	}
-	wl_list_insert(&scratchpad_clients, &c->link_temp);
-}
-
-void
-togglescratchpad(const Arg *arg)
-{
-	Client *c;
-	Monitor *m = selmon;
-
-	scratchpad_visible = !scratchpad_visible;
-	if (scratchpad_visible) {
-		wl_list_for_each(c, &scratchpad_clients, link_temp) {
-			c->mon = m;
-			c->tags = m->tagset[m->seltags];
-			arrange(m);
-			focusclient(c, 1);
-		}
-	} else {
-		wl_list_for_each(c, &scratchpad_clients, link_temp) {
-			c->tags = 0;
-			focusclient(focustop(m), 1);
-			arrange(m);
-		}
-	}
-}
-
-void
-removescratchpad(const Arg *arg)
-{
-	Client *sc, *c = focustop(selmon);
-
-	if (c && wl_list_length(&scratchpad_clients) > 0) {
-		/* Check if c is in scratchpad_clients */
-		wl_list_for_each(sc, &scratchpad_clients, link_temp) {
-			if (sc == c) {
-				wl_list_remove(&c->link_temp);
-				break;
-			}
-		}
-	}
-}
 
 /* function implementations */
 void
@@ -596,10 +544,6 @@ applyrules(Client *c)
 			}
 		}
 	}
-	if (mon) {
-		c->geom.x = (mon->w.width - c->geom.width) / 2 + mon->m.x;
-		c->geom.y = (mon->w.height - c->geom.height) / 2 + mon->m.y;
-	}
 	setmon(c, mon, newtags);
 }
 
@@ -641,7 +585,6 @@ arrange(Monitor *m)
 		m->lt[m->sellt]->arrange(m);
 	motionnotify(0, NULL, 0, 0, 0, 0);
 	checkidleinhibitor(NULL);
-	warpcursor(focustop(selmon));
 }
 
 void
@@ -821,8 +764,8 @@ bufrelease(struct wl_listener *listener, void *data)
 void
 buttonpress(struct wl_listener *listener, void *data)
 {
-	unsigned int i = 0, x = 0;
-	double cx;
+	unsigned int i = 0, x = 0, ti = 0;
+	double cx, tx = 0;
 	unsigned int click;
 	struct wlr_pointer_button_event *event = data;
 	struct wlr_keyboard *keyboard;
@@ -832,6 +775,7 @@ buttonpress(struct wl_listener *listener, void *data)
 	Arg arg = {0};
 	Client *c;
 	const Button *b;
+	int traywidth;
 
 	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
 
@@ -850,17 +794,29 @@ buttonpress(struct wl_listener *listener, void *data)
 		if (!c && !exclusive_focus &&
 			(node = wlr_scene_node_at(&layers[LyrBottom]->node, cursor->x, cursor->y, NULL, NULL)) &&
 			(buffer = wlr_scene_buffer_from_node(node)) && buffer == selmon->scene_buffer) {
+
 			cx = (cursor->x - selmon->m.x) * selmon->wlr_output->scale;
+			traywidth = tray_get_width(selmon->tray);
+
 			do
 				x += TEXTW(selmon, tags[i]);
 			while (cx >= x && ++i < LENGTH(tags));
+
 			if (i < LENGTH(tags)) {
 				click = ClkTagBar;
 				arg.ui = 1 << i;
 			} else if (cx < x + TEXTW(selmon, selmon->ltsymbol))
 				click = ClkLtSymbol;
-			else if (cx > selmon->b.width - (TEXTW(selmon, stext) - selmon->lrpad + 2)) {
+			else if (cx > selmon->b.width - (TEXTW(selmon, stext) - selmon->lrpad + 2) && cx < selmon->b.width - traywidth) {
 				click = ClkStatus;
+			} else if (cx > selmon->b.width - (TEXTW(selmon, stext) - selmon->lrpad + 2)) {
+				unsigned int tray_n_items = watcher_get_n_items(&watcher);
+				tx = selmon->b.width - traywidth;
+				do
+					tx += tray_n_items ? (int)(traywidth / tray_n_items) : 0;
+				while (cx >= tx && ++ti < tray_n_items);
+				click = ClkTray;
+				arg.ui = ti;
 			} else
 				click = ClkTitle;
 		}
@@ -874,7 +830,12 @@ buttonpress(struct wl_listener *listener, void *data)
 		mods = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
 		for (b = buttons; b < END(buttons); b++) {
 			if (CLEANMASK(mods) == CLEANMASK(b->mod) && event->button == b->button && click == b->click && b->func) {
-				b->func(click == ClkTagBar && b->arg.i == 0 ? &arg : &b->arg);
+				if (click == ClkTagBar && b->arg.i == 0)
+					b->func(&arg);
+				else if (click == ClkTray && b->arg.i == 0)
+					b->func(&arg);
+				else
+					b->func(&b->arg);
 				return;
 			}
 		}
@@ -950,6 +911,12 @@ cleanup(void)
 
 	destroykeyboardgroup(&kb_group->destroy, NULL);
 
+	if (showbar && showsystray) {
+		watcher_stop(&watcher);
+		stopbus(bus_conn, bus_source);
+		dbus_connection_unref(bus_conn);
+	}
+
 	/* If it's not destroyed manually it will cause a use-after-free of wlr_seat.
 	 * Destroy it until it's fixed in the wlroots side */
 	wlr_backend_destroy(backend);
@@ -977,6 +944,9 @@ cleanupmon(struct wl_listener *listener, void *data)
 
 	for (i = 0; i < LENGTH(m->pool); i++)
 		wlr_buffer_drop(&m->pool[i]->base);
+
+	if (showsystray)
+		destroytray(m->tray);
 
 	drwl_setimage(m->drw, NULL);
 	drwl_destroy(m->drw);
@@ -1536,26 +1506,15 @@ void
 destroynotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the xdg_toplevel is destroyed. */
-	Client *sc, *c = wl_container_of(listener, c, destroy);
+	Client *c = wl_container_of(listener, c, destroy);
 	wl_list_remove(&c->destroy.link);
 	wl_list_remove(&c->set_title.link);
 	wl_list_remove(&c->fullscreen.link);
-	/* Check if destroyed client was part of scratchpad_clients
-	 * and clean it from the list if so. */
-	if (c && wl_list_length(&scratchpad_clients) > 0) {
-		wl_list_for_each(sc, &scratchpad_clients, link_temp) {
-			if (sc == c) {
-				wl_list_remove(&c->link_temp);
-				break;
-			}
-		}
-	}
 #ifdef XWAYLAND
 	if (c->type != XDGShell) {
 		wl_list_remove(&c->activate.link);
 		wl_list_remove(&c->associate.link);
 		wl_list_remove(&c->configure.link);
-		wl_list_remove(&c->minimize.link);
 		wl_list_remove(&c->dissociate.link);
 		wl_list_remove(&c->set_hints.link);
 	} else
@@ -1627,6 +1586,7 @@ dirtomon(enum wlr_direction dir)
 void
 drawbar(Monitor *m)
 {
+	int traywidth = 0;
 	int x, w, tw = 0;
 	int boxs = m->drw->font->height / 9;
 	int boxw = m->drw->font->height / 6 + 2;
@@ -1639,11 +1599,13 @@ drawbar(Monitor *m)
 	if (!(buf = bufmon(m)))
 		return;
 
+	traywidth = tray_get_width(m->tray);
+
 	/* draw status first so it can be overdrawn by tags later */
 	if (m == selmon) { /* status is only drawn on selected monitor */
 		drwl_setscheme(m->drw, colors[SchemeNorm]);
 		tw = TEXTW(m, stext) - m->lrpad + 2; /* 2px right padding */
-		drwl_text(m->drw, m->b.width - tw, 0, tw, m->b.height, 0, stext, 0);
+		drwl_text(m->drw, m->b.width - (tw + traywidth), 0, tw, m->b.height, 0, stext, 0);
 	}
 
 	wl_list_for_each(c, &clients, link) {
@@ -1669,7 +1631,7 @@ drawbar(Monitor *m)
 	drwl_setscheme(m->drw, colors[SchemeNorm]);
 	x = drwl_text(m->drw, x, 0, w, m->b.height, m->lrpad / 2, m->ltsymbol, 0);
 
-	if ((w = m->b.width - tw - x) > m->b.height) {
+	if ((w = m->b.width - (tw + x + traywidth)) > m->b.height) {
 		if (c) {
 			drwl_setscheme(m->drw, colors[m == selmon ? SchemeSel : SchemeNorm]);
 			drwl_text(m->drw, x, 0, w, m->b.height, m->lrpad / 2, client_get_title(c), 0);
@@ -1681,12 +1643,41 @@ drawbar(Monitor *m)
 		}
 	}
 
+	if (traywidth > 0) {
+		pixman_image_composite32(PIXMAN_OP_SRC,
+		                         m->tray->image, NULL, m->drw->image,
+		                         0, 0,
+		                         0, 0,
+		                         m->b.width - traywidth, 0,
+		                         traywidth, m->b.height);
+	}
+
 	wlr_scene_buffer_set_dest_size(m->scene_buffer,
 		m->b.real_width, m->b.real_height);
 	wlr_scene_node_set_position(&m->scene_buffer->node, m->m.x,
 		m->m.y + (topbar ? 0 : m->m.height - m->b.real_height));
 	wlr_scene_buffer_set_buffer(m->scene_buffer, &buf->base);
 	wlr_buffer_unlock(&buf->base);
+}
+
+void
+traynotify(void *data)
+{
+	Monitor *m = data;
+
+	drawbar(m);
+}
+
+void
+trayactivate(const Arg *arg)
+{
+	tray_leftclicked(selmon->tray, arg->ui);
+}
+
+void
+traymenu(const Arg *arg)
+{
+	tray_rightclicked(selmon->tray, arg->ui, dmenucmd);
 }
 
 void
@@ -1708,10 +1699,6 @@ focusclient(Client *c, int lift)
 
 	if (locked)
 		return;
-
-	/* Warp cursor to center of client if it is outside */
-	if (lift)
-		warpcursor(c);
 
 	/* Raise client in stacking order if requested */
 	if (c && lift)
@@ -2112,10 +2099,6 @@ mapnotify(struct wl_listener *listener, void *data)
 	 * try to apply rules for them */
 	if ((p = client_get_parent(c))) {
 		c->isfloating = 1;
-		if (p->mon) {
-			c->geom.x = (p->mon->w.width - c->geom.width) / 2 + p->mon->m.x;
-			c->geom.y = (p->mon->w.height - c->geom.height) / 2 + p->mon->m.y;
-		}
 		setmon(c, p->mon, p->tags);
 	} else {
 		applyrules(c);
@@ -2594,6 +2577,8 @@ run(char *startup_cmd)
 	if (!socket)
 		die("startup: display_add_socket_auto");
 	setenv("WAYLAND_DISPLAY", socket, 1);
+	for (size_t i = 0; i < LENGTH(envs); i++)
+		setenv(envs[i].variable, envs[i].value, 1);
 
 	/* Start the backend. This will enumerate outputs and inputs, become the DRM
 	 * master, etc */
@@ -2670,21 +2655,11 @@ setcursorshape(struct wl_listener *listener, void *data)
 void
 setfloating(Client *c, int floating)
 {
-	Client *sc, *p = client_get_parent(c);
+	Client *p = client_get_parent(c);
 	c->isfloating = floating;
 	/* If in floating layout do not change the client's layer */
 	if (!c->mon || !client_surface(c)->mapped || !c->mon->lt[c->mon->sellt]->arrange)
 		return;
-	/* Check if unfloated client was part of scratchpad_clients
-	 * and remove it from scratchpad_clients list if so */
-	if (!floating && wl_list_length(&scratchpad_clients) > 0) {
-		wl_list_for_each(sc, &scratchpad_clients, link_temp) {
-			if (sc == c) {
-				wl_list_remove(&c->link_temp);
-				break;
-			}
-		}
-	}
 	wlr_scene_node_reparent(&c->scene->node, layers[c->isfullscreen ||
 			(p && p->isfullscreen) ? LyrFS
 			: c->isfloating ? LyrFloat : LyrTile]);
@@ -2909,7 +2884,6 @@ setup(void)
 	 */
 	wl_list_init(&clients);
 	wl_list_init(&fstack);
-	wl_list_init(&scratchpad_clients);
 
 	xdg_shell = wlr_xdg_shell_create(dpy, 6);
 	LISTEN_STATIC(&xdg_shell->events.new_toplevel, createnotify);
@@ -3005,6 +2979,17 @@ setup(void)
 
 	status_event_source = wl_event_loop_add_fd(wl_display_get_event_loop(dpy),
 		STDIN_FILENO, WL_EVENT_READABLE, statusin, NULL);
+
+	if (showbar && showsystray) {
+		bus_conn = dbus_bus_get(DBUS_BUS_SESSION, NULL);
+		if (!bus_conn)
+			die("Failed to connect to bus");
+		bus_source = startbus(bus_conn, event_loop);
+		if (!bus_source)
+			die("Failed to start listening to bus events");
+		if (watcher_start(&watcher, bus_conn, event_loop) < 0)
+			die("Failed to start tray watcher");
+	}
 
 	/* Make sure XWayland clients don't connect to the parent X server,
 	 * e.g when running in the x11 backend or the wayland backend and the
@@ -3348,6 +3333,7 @@ updatebar(Monitor *m)
 	size_t i;
 	int rw, rh;
 	char fontattrs[12];
+	Tray *tray;
 
 	wlr_output_transformed_resolution(m->wlr_output, &rw, &rh);
 	m->b.width = rw;
@@ -3373,6 +3359,18 @@ updatebar(Monitor *m)
 	m->lrpad = m->drw->font->height;
 	m->b.height = m->drw->font->height + 2;
 	m->b.real_height = (int)((float)m->b.height / m->wlr_output->scale);
+
+	if (showsystray) {
+		if (m->tray)
+			destroytray(m->tray);
+		tray = createtray(m,
+		                  m->b.height, systrayspacing, colors[SchemeNorm], fonts, fontattrs,
+		                  &traynotify, &watcher);
+		if (!tray)
+			die("Couldn't create tray for monitor");
+		m->tray = tray;
+		wl_list_insert(&watcher.trays, &tray->link);
+	}
 }
 
 void
@@ -3435,38 +3433,6 @@ virtualpointer(struct wl_listener *listener, void *data)
 	wlr_cursor_attach_input_device(cursor, device);
 	if (event->suggested_output)
 		wlr_cursor_map_input_to_output(cursor, device, event->suggested_output);
-}
-
-void
-warpcursor(const Client *c) {
-	if (cursor_mode != CurNormal) {
-		return;
-	}
-	if (!c && selmon) {
-		wlr_cursor_warp_closest(cursor,
-			  NULL,
-			  selmon->w.x + selmon->w.width / 2.0 ,
-			  selmon->w.y + selmon->w.height / 2.0);
-	}
-	else if ( c && (cursor->x < c->geom.x ||
-		cursor->x > c->geom.x + c->geom.width ||
-		cursor->y < c->geom.y ||
-		cursor->y > c->geom.y + c->geom.height))
-		wlr_cursor_warp_closest(cursor,
-			  NULL,
-			  c->geom.x + c->geom.width / 2.0,
-			  c->geom.y + c->geom.height / 2.0);
-}
-
-void
-winview(const Arg *a) {
-	Arg b = {0};
-	Client *sel = focustop(selmon);
-	if(!sel)
-		return;
-	b.ui = sel -> tags;
-	view(&b);
-	return;
 }
 
 Monitor *
@@ -3599,7 +3565,6 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	LISTEN(&xsurface->events.destroy, &c->destroy, destroynotify);
 	LISTEN(&xsurface->events.dissociate, &c->dissociate, dissociatex11);
 	LISTEN(&xsurface->events.request_activate, &c->activate, activatex11);
-	LISTEN(&xsurface->events.request_minimize, &c->minimize, minimizenotify);
 	LISTEN(&xsurface->events.request_configure, &c->configure, configurex11);
 	LISTEN(&xsurface->events.request_fullscreen, &c->fullscreen, fullscreennotify);
 	LISTEN(&xsurface->events.set_hints, &c->set_hints, sethints);
@@ -3625,21 +3590,6 @@ getatom(xcb_connection_t *xc, const char *name)
 	free(reply);
 
 	return atom;
-}
-
-void
-minimizenotify(struct wl_listener *listener, void *data)
-{
-	Client *c = wl_container_of(listener, c, minimize);
-	struct wlr_xwayland_surface *xsurface = c->surface.xwayland;
-	struct wlr_xwayland_minimize_event *e = data;
-	int focused;
-
-	if (xsurface->surface == NULL || !xsurface->surface->mapped)
-		return;
-
-	focused = seat->keyboard_state.focused_surface == xsurface->surface;
-	wlr_xwayland_surface_set_minimized(xsurface, !focused && e->minimize);
 }
 
 void

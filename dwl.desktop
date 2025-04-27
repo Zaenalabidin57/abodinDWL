@@ -1,5 +1,5 @@
 [Desktop Entry]
 Name=AbudinDWL
 Comment=dwm for Wayland
-Exec=/home/shigure/shigure/AbodinDWL/scripts/run.sh
+Exec=/home/shigure/.config/scripts/abodindwl/run_dwl.sh
 Type=Application

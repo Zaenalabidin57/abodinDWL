@@ -8,19 +8,23 @@
 static const int sloppyfocus               = 1;  /* focus follows mouse */
 static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will disable idle tracking even if it's surface isn't visible  */
 static const unsigned int borderpx         = 1;  /* border pixel of windows */
+static const unsigned int systrayspacing   = 2; /* systray spacing */
+static const int showsystray               = 1; /* 0 means no systray */
 static const int showbar                   = 1; /* 0 means no bar */
 static const int topbar                    = 0; /* 0 means bottom bar */
 static const char *fonts[]                 = {"Monocraft Nerd Font:style:Light:size=12"};
-static const float rootcolor[]             = COLOR(0x001E1D2D);
+static const float rootcolor[]             = COLOR(0x0009090E);
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
 static uint32_t colors[][3]                = {
 	/*               fg          bg          border    */
 	/*[SchemeNorm] = { 0x6e738d96, 0xcad3f5ff, 0x444444ff },*/
 	[SchemeNorm] = { 0xf8f8f2ff, 0x1e1d2dff, 0x444444ff },
-	[SchemeSel]  = { 0x282737ff, 0x96cdfbff, 0x005577ff },
+	[SchemeSel]  = { 0xf8f8f2ff, 0x202f61ff, 0x005577ff },
+	//[SchemeSel]  = { 0x282737ff, 0x202f61ff, 0x005577ff },
 	[SchemeUrg]  = { 0,          0,          0x770000ff },
 };
+// aku nak sikit aksi
 
 /* tagging - TAGCOUNT must be no greater than 31 */
 static char *tags[] = { "1", "2", "3", "4", "5",};
@@ -28,16 +32,26 @@ static char *tags[] = { "1", "2", "3", "4", "5",};
 /* logging */
 static int log_level = WLR_ERROR;
 
+// setup env dsw
+
+static const Env envs[] = {
+  {"XDG_CURRENT_DESKTOP", "wlroots"},
+  {"QT_QPA_PLATFORM", "wayland"},
+  {"SDL_VIDEODRIVER", "wayland"},
+  {"XDG_SESSION_DESKTOP", "wlroots"},
+};
+
 /* Autostart */
 static const char *const autostart[] = {
-        "sh", "-c" , "swaybg -i ~/Pictures/wollpeper/plana.png -m fill", NULL,
-        "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
+        "sh", "-c" , "swaybg -i ~/Pictures/wollpeper/shiguWollupeper.png -m fill", NULL,
+        "sh", "-c", "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
+        //"sh", "-c", "/usr/bin/lxpolkit", NULL,
         "sh", "-c" , "mako", NULL,
         "sh", "-c" , "wl-paste --watch cliphist store", NULL,
         "sh", "-c" , "/usr/bin/kdeconnectd", NULL,
         "sh", "-c" , "/usr/bin/kdeconnect-indicator", NULL,
-        //"zsh", "-c" , "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP", NULL,
-        //"zsh", "-c" , "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP", NULL,
+        "sh", "-c" , "/home/shigure/.config/scripts/abodindwl/wlranjeng.sh", NULL,
+        "sh", "-c" , "/home/shigure/.config/niri/idle.sh", NULL,
         NULL /* terminate */
 };
 
@@ -62,8 +76,8 @@ static const Rule rules[] = {
 /* layout(s) */
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "[]=",      tile },
 	{ "><>",      NULL },    /* no layout function means floating behavior */
+	{ "[]=",      tile },
 	{ "[M]",      monocle },
 };
 
@@ -75,13 +89,8 @@ static const Layout layouts[] = {
 /* NOTE: ALWAYS add a fallback rule, even if you are completely sure it won't be used */
 static const MonitorRule monrules[] = {
 	/* name       mfact  nmaster scale layout       rotate/reflect                x    y */
-	/* example of a HiDPI laptop monitor:
-	{ "eDP-1",    0.5f,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
-	*
-	/* defaults */
-	//{ "eDP-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1, -1  },
-	//{ "HDMI-A-1",    0.5,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   1920, 0  },
 	{ "eDP-1",    0.5f,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
+	{ "HDMI-A-1",    0.5f,  1,      0.6f,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1, -1  },
 };
 
 /* keyboard */
@@ -90,11 +99,12 @@ static const struct xkb_rule_names xkb_rules = {
 	/* example:
 	.options = "ctrl:nocaps",
 	*/
-	.options = NULL,
+	//.options = NULL,
+	.options = "caps:escape",
 };
 
 static const int repeat_rate = 25;
-static const int repeat_delay = 600;
+static const int repeat_delay = 200;
 
 /* Trackpad */
 static const int tap_to_click = 1;
@@ -163,8 +173,10 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
 /* commands */
-static const char *termcmd[] = { "foot", NULL };
-//static const char *menucmd[] = { "rofi -show drun", NULL };
+//static const char *termcmd[] = { "foot", NULL };
+static const char *termcmd[] = { "st", NULL };
+static const char *skrinsut[] = {"sh", "-c", "hyprshot -m region -z -o ~/Pictures/screenshot | wl-copy -p -t image/png", NULL};
+static const char *dmenucmd[] = { "fuzzel", "--dmenu", NULL };
 
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
@@ -181,7 +193,7 @@ static const Key keys[] = {
 	{0,				XKB_KEY_XF86MonBrightnessDown,	spawn,	{.v = light_down}},
 
 	//{ MODKEY,                    XKB_KEY_d,          spawn,          {.v = menucmd} },
-	{ MODKEY,                    XKB_KEY_d,          spawn,          SHCMD("rofi -show drun")},
+	{ MODKEY,                    XKB_KEY_d,          spawn,          SHCMD("fuzzel")},
 	{ MODKEY, XKB_KEY_Return,     spawn,          {.v = termcmd} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_P,     togglebar,          {0} },
 	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
@@ -190,7 +202,7 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
       { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("zen-browser")},
     { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("thunar")},
-    { MODKEY,                           XKB_KEY_Print,  spawn,            SHCMD("~/.config/scripts/skrinsut.sh")},
+    { 0,                          XKB_KEY_Print ,  spawn,            {.v = skrinsut}},
     { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("foot /home/shigure/exit.sh")},
     { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
     { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
@@ -207,9 +219,6 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_space,      setlayout,      {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_space,      togglefloating, {0} },
 	{ MODKEY,                    XKB_KEY_f,         togglefullscreen, {0} },
-	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_S,         addscratchpad, {0} },
-	{ MODKEY,                    XKB_KEY_s,        togglescratchpad, {0} },
-	{ MODKEY,                    XKB_KEY_w,        togglescratchpad, {0} },
 	{ MODKEY,                    XKB_KEY_0,          view,           {.ui = ~0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_parenright, tag,            {.ui = ~0} },
 	{ MODKEY,                    XKB_KEY_comma,      focusmon,       {.i = WLR_DIRECTION_LEFT} },
@@ -249,4 +258,6 @@ static const Button buttons[] = {
 	{ ClkTagBar,   0,      BTN_RIGHT,  toggleview,     {0} },
 	{ ClkTagBar,   MODKEY, BTN_LEFT,   tag,            {0} },
 	{ ClkTagBar,   MODKEY, BTN_RIGHT,  toggletag,      {0} },
+	{ ClkTray,     0,      BTN_LEFT,   trayactivate,   {0} },
+	{ ClkTray,     0,      BTN_RIGHT,  traymenu,       {0} },
 };
