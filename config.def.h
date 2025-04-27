@@ -7,8 +7,8 @@
 /* appearance */
 static const int sloppyfocus               = 1;  /* focus follows mouse */
 static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will disable idle tracking even if it's surface isn't visible  */
-static const unsigned int borderpx         = 1;  /* border pixel of windows */
-static const unsigned int systrayspacing   = 2; /* systray spacing */
+static const unsigned int borderpx         = 3;  /* border pixel of windows */
+static const unsigned int systrayspacing   = 5; /* systray spacing */
 static const int showsystray               = 1; /* 0 means no systray */
 static const int showbar                   = 1; /* 0 means no bar */
 static const int topbar                    = 0; /* 0 means bottom bar */
@@ -19,14 +19,15 @@ static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You ca
 static uint32_t colors[][3]                = {
 	/*               fg          bg          border    */
 	/*[SchemeNorm] = { 0x6e738d96, 0xcad3f5ff, 0x444444ff },*/
-	[SchemeNorm] = { 0xf8f8f2ff, 0x1e1d2dff, 0x444444ff },
-	[SchemeSel]  = { 0xf8f8f2ff, 0x202f61ff, 0x005577ff },
+	[SchemeNorm] = { 0xf8f8f2ff, 0x1e1d2dff, 0x0c161fff },
+	[SchemeSel]  = { 0xf8f8f2ff, 0x202f61ff, 0x2b15d4ff },
 	//[SchemeSel]  = { 0x282737ff, 0x202f61ff, 0x005577ff },
 	[SchemeUrg]  = { 0,          0,          0x770000ff },
 };
 // aku nak sikit aksi
 
 /* tagging - TAGCOUNT must be no greater than 31 */
+#define  TAGCOUNT (5)
 static char *tags[] = { "1", "2", "3", "4", "5",};
 
 /* logging */
@@ -51,7 +52,7 @@ static const char *const autostart[] = {
         "sh", "-c" , "/usr/bin/kdeconnectd", NULL,
         "sh", "-c" , "/usr/bin/kdeconnect-indicator", NULL,
         "sh", "-c" , "/home/shigure/.config/scripts/abodindwl/wlranjeng.sh", NULL,
-        "sh", "-c" , "/home/shigure/.config/niri/idle.sh", NULL,
+        "sh", "-c" , "/home/shigure/.config/scripts/abodindwl/turu.sh", NULL,
         NULL /* terminate */
 };
 
@@ -174,7 +175,7 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 
 /* commands */
 //static const char *termcmd[] = { "foot", NULL };
-static const char *termcmd[] = { "st", NULL };
+static const char *termcmd[] = { "ghostty", NULL };
 static const char *skrinsut[] = {"sh", "-c", "hyprshot -m region -z -o ~/Pictures/screenshot | wl-copy -p -t image/png", NULL};
 static const char *dmenucmd[] = { "fuzzel", "--dmenu", NULL };
 
@@ -182,9 +183,9 @@ static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
 	/* modifier                  key                 function        argument */
 
-    {0,                       XKB_KEY_SunAudioLowerVolume, spawn, {.v = downvol}},
-	{0,                       XKB_KEY_SunAudioMute, spawn, {.v = mutevol }},
-	{0,                       XKB_KEY_SunAudioRaiseVolume, spawn, {.v = upvol}},
+    {0,                       XKB_KEY_XF86AudioLowerVolume, spawn, {.v = downvol}},
+	{0,                       XKB_KEY_XF86AudioMute, spawn, {.v = mutevol }},
+	{0,                       XKB_KEY_XF86AudioRaiseVolume, spawn, {.v = upvol}},
   {0,                       XKB_KEY_XF86AudioPlay, spawn, {.v = Pplay}},
   {0,                       XKB_KEY_XF86AudioPause, spawn, {.v = Ppause}},
   {0,                       XKB_KEY_XF86AudioNext, spawn, {.v = audionext}},
@@ -195,7 +196,9 @@ static const Key keys[] = {
 	//{ MODKEY,                    XKB_KEY_d,          spawn,          {.v = menucmd} },
 	{ MODKEY,                    XKB_KEY_d,          spawn,          SHCMD("fuzzel")},
 	{ MODKEY, XKB_KEY_Return,     spawn,          {.v = termcmd} },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_P,     togglebar,          {0} },
+	{ MODKEY, XKB_KEY_p,     togglebar,          {0} },
+	{ MODKEY, XKB_KEY_semicolon,     togglebar,          {0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_P,     spawn,          SHCMD("swaylock -f -c 000000")},
 	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_J,          movestack,     {.i = +1} },
