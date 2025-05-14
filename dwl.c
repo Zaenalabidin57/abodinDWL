@@ -80,7 +80,8 @@
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
 #define MIN(A, B)               ((A) < (B) ? (A) : (B))
 #define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
-#define VISIBLEON(C, M)         ((M) && (C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]))
+#define VISIBLEON(C, M)         ((M) && ((!(M)->wlr_output && (C)->scratchkey != 0 && (C)->scratchkey == current_scratch) \
+                                         || ((C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]))))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1u << LENGTH(tags)) - 1)
@@ -152,6 +153,7 @@ typedef struct {
 	unsigned int bw;
 	uint32_t tags;
 	int isfloating, isurgent, isfullscreen;
+	char scratchkey;
 	uint32_t resize; /* configure serial of a pending resize */
 } Client;
 
@@ -263,6 +265,7 @@ typedef struct {
 	uint32_t tags;
 	int isfloating;
 	int monitor;
+	const char scratchkey;
 } Rule;
 
 typedef struct {
@@ -334,6 +337,7 @@ static void drawbar(Monitor *m);
 static void drawbars(void);
 static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
+static void focusortogglescratch(const Arg *arg);
 static void focusstack(const Arg *arg);
 static Client *focustop(Monitor *m);
 static void fullscreennotify(struct wl_listener *listener, void *data);
@@ -381,6 +385,8 @@ static void setpsel(struct wl_listener *listener, void *data);
 static void setsel(struct wl_listener *listener, void *data);
 static void setup(void);
 static void spawn(const Arg *arg);
+static void spawnscratch(const Arg *arg);
+static void togglescratch(const Arg *arg);
 static void startdrag(struct wl_listener *listener, void *data);
 static int statusin(int fd, unsigned int mask, void *data);
 static void tag(const Arg *arg);
@@ -405,6 +411,7 @@ static void urgent(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static void virtualkeyboard(struct wl_listener *listener, void *data);
 static void virtualpointer(struct wl_listener *listener, void *data);
+static void winview(const Arg *a);
 static Monitor *xytomon(double x, double y);
 static void xytonode(double x, double y, struct wlr_surface **psurface,
 		Client **pc, LayerSurface **pl, double *nx, double *ny);
@@ -480,6 +487,9 @@ static const struct wlr_buffer_impl buffer_impl = {
     .end_data_ptr_access = bufdataend,
 };
 
+static char current_scratch;
+static pid_t next_scratch;
+
 #ifdef XWAYLAND
 static void activatex11(struct wl_listener *listener, void *data);
 static void associatex11(struct wl_listener *listener, void *data);
@@ -535,10 +545,14 @@ applyrules(Client *c)
 	const char *appid, *title;
 	uint32_t newtags = 0;
 	int i;
+	pid_t pid;
 	const Rule *r;
 	Monitor *mon = selmon, *m;
 
+	wl_client_get_credentials(c->surface.xdg->client->client, &pid, NULL, NULL);
+
 	c->isfloating = client_is_float_type(c);
+	c->scratchkey = current_scratch;
 	if (!(appid = client_get_appid(c)))
 		appid = broken;
 	if (!(title = client_get_title(c)))
@@ -548,6 +562,8 @@ applyrules(Client *c)
 		if ((!r->title || strstr(title, r->title))
 				&& (!r->id || strstr(appid, r->id))) {
 			c->isfloating = r->isfloating;
+			if (r->scratchkey != 0)
+    			c->scratchkey = r->scratchkey;
 			newtags |= r->tags;
 			i = 0;
 			wl_list_for_each(m, &mons, link) {
@@ -556,6 +572,8 @@ applyrules(Client *c)
 			}
 		}
 	}
+	if (pid == next_scratch)
+    	c->scratchkey = current_scratch;
 	setmon(c, mon, newtags);
 }
 
@@ -563,11 +581,24 @@ void
 arrange(Monitor *m)
 {
 	Client *c;
+	Monitor scratchmon = *m;
+	scratchmon.tagset[0] = 0;
+	scratchmon.tagset[1] = 0;
+	scratchmon.wlr_output = NULL;
+	scratchmon.w.x += (int)(scratchmon.w.width * (1 - scratchfactor)/2);
+	scratchmon.w.y += (int)(scratchmon.w.height * (1 - scratchfactor)/2);
+	scratchmon.w.width = (int)(scratchmon.w.width * scratchfactor);
+	scratchmon.w.height = (int)(scratchmon.w.height * scratchfactor);
 
 	if (!m->wlr_output->enabled)
 		return;
 
 	wl_list_for_each(c, &clients, link) {
+    	if (c->scratchkey != 0) {
+        	c->mon = &scratchmon;
+            wlr_scene_node_set_enabled(&c->scene->node, c->scratchkey == current_scratch);
+            client_set_suspended(c, c->scratchkey != current_scratch);
+    	}
 		if (c->mon == m) {
 			wlr_scene_node_set_enabled(&c->scene->node, VISIBLEON(c, m));
 			client_set_suspended(c, !VISIBLEON(c, m));
@@ -593,8 +624,17 @@ arrange(Monitor *m)
 								: c->scene->node.parent);
 	}
 
-	if (m->lt[m->sellt]->arrange)
+	if (m->lt[m->sellt]->arrange) {
 		m->lt[m->sellt]->arrange(m);
+		m->lt[m->sellt]->arrange(&scratchmon);
+	}
+
+    wl_list_for_each(c, &clients, link) 
+        if (c->mon == &scratchmon) {
+            c->mon = m;
+            wlr_scene_node_reparent(&c->scene->node, layers[LyrFloat]);
+        }
+
 	motionnotify(0, NULL, 0, 0, 0, 0);
 	checkidleinhibitor(NULL);
 }
@@ -1800,6 +1840,57 @@ focusmon(const Arg *arg)
 		while (!selmon->wlr_output->enabled && i++ < nmons);
 	}
 	focusclient(focustop(selmon), 1);
+}
+
+void
+focusortogglescratch(const Arg *arg)
+{
+	Client *c;
+    const char next = ((char**)arg->v)[0][0];
+    unsigned int off = next == current_scratch;
+
+    if (((c = focustop(selmon)) && c->scratchkey == next) || current_scratch != next)
+    {
+            togglescratch(arg);
+            focusclient(NULL, 0);
+    }
+
+    if (current_scratch == 0)
+        return;
+
+	wl_list_for_each(c, &clients, link)
+    	if (c->scratchkey == current_scratch) {
+            focusclient(c, 0);
+            return;
+    	}
+
+    if (off) current_scratch = 0;
+}
+
+void
+togglescratch(const Arg *arg)
+{
+	Client *c;
+    const char next = ((char**)arg->v)[0][0];
+	unsigned int found = 0;
+
+    current_scratch = current_scratch == next ? 0 : next;
+
+	wl_list_for_each(c, &clients, link) {
+        if (c->scratchkey == current_scratch) {
+            found = 1;
+            c->tags = selmon ->tagset[selmon->seltags];
+        }
+        if (c->scratchkey == next && current_scratch == 0)
+        {
+            c->tags = 0;
+        }
+	}
+
+    if (!found && current_scratch)
+        spawnscratch(arg);
+    else
+        arrange(selmon);
 }
 
 void
@@ -3050,6 +3141,19 @@ spawn(const Arg *arg)
 	}
 }
 
+void spawnscratch(const Arg *arg)
+{
+    if (next_scratch != 0 && kill(next_scratch, 0) == 0)
+        return;
+
+	if (fork() == 0) {
+		dup2(STDERR_FILENO, STDOUT_FILENO);
+		setsid();
+		execvp(((char **)arg->v)[1], ((char **)arg->v)+1);
+		die("dwl: execvp %s failed:", ((char **)arg->v)[1]);
+	}
+}
+
 void
 startdrag(struct wl_listener *listener, void *data)
 {
@@ -3516,6 +3620,17 @@ virtualpointer(struct wl_listener *listener, void *data)
 	wlr_cursor_attach_input_device(cursor, device);
 	if (event->suggested_output)
 		wlr_cursor_map_input_to_output(cursor, device, event->suggested_output);
+}
+
+void
+winview(const Arg *a) {
+	Arg b = {0};
+	Client *sel = focustop(selmon);
+	if(!sel)
+		return;
+	b.ui = sel -> tags;
+	view(&b);
+	return;
 }
 
 Monitor *
