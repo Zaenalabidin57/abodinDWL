@@ -9,3 +9,17 @@ btrtile.c
 config.def.h.orig
 config.def.h.rej
 config.def.h.rej
+systray/helpers.o
+systray/helpers.o
+systray/icon.o
+systray/item.o
+systray/menu.o
+systray/tray.o
+systray/watcher.o
+config.h
+cursor-shape-v1-protocol.h
+dbus.o
+everse
+flake.lock
+util.o
+xdg-shell-protocol.h

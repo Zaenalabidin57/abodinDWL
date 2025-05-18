@@ -50,7 +50,7 @@ static const char *const autostart[] = {
         "sh", "-c" , "swaybg -i ~/Pictures/wollpeper/shiguWollupeper.png -m fill", NULL,
         "sh", "-c", "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
         //"sh", "-c", "/usr/bin/lxpolkit", NULL,
-        "sh", "-c" , "mako", NULL,
+        "sh", "-c" , "dunst", NULL,
         "sh", "-c" , "wl-paste --watch cliphist store", NULL,
         "sh", "-c" , "/usr/bin/kdeconnectd", NULL,
         "sh", "-c" , "/usr/bin/kdeconnect-indicator", NULL,
@@ -179,8 +179,8 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 /* commands */
 //static const char *termcmd[] = { "foot", NULL };
 static const char *termcmd[] = { "ghostty", NULL };
-static const char *skrinsut[] = {"sh", "-c", "hyprshot -m region -z -o ~/Pictures/screenshot | wl-copy -p -t image/png", NULL};
-static const char *dmenucmd[] = { "fuzzel", "--dmenu", NULL };
+static const char *skrinsut[] = {"sh", "-c", "~/.config/labwc/skinshut.sh", NULL};
+static const char *dmenucmd[] = {"sh", "-c", "rofi", "-show", "drun", NULL };
 
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
@@ -224,6 +224,9 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_F,          setlayout,      {.v = &layouts[1]} },
 	{ MODKEY,                    XKB_KEY_m,          setlayout,      {.v = &layouts[2]} },
 	{ MODKEY,                    XKB_KEY_space,      setlayout,      {0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_S,          addscratchpad,    {0} },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_s,         removescratchpad, {0} },
+  { MODKEY,                    XKB_KEY_s,        togglescratchpad, {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_space,      togglefloating, {0} },
 	{ MODKEY,                    XKB_KEY_f,         togglefullscreen, {0} },
 	{ MODKEY,                    XKB_KEY_0,          view,           {.ui = ~0} },

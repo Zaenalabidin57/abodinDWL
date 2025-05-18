@@ -60,7 +60,7 @@ xdg-shell-protocol.h:
 config.h:
 	cp config.def.h $@
 clean:
-	rm -f dwl *.o *-protocol.h systray/*.o
+	rm -f dwl *.o *-protocol.h systray/*.o config.h
 
 dist: clean
 	mkdir -p dwl-$(VERSION)
