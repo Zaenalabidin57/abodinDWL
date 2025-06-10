@@ -47,8 +47,9 @@ static const Env envs[] = {
 
 /* Autostart */
 static const char *const autostart[] = {
-        "sh", "-c" , "swaybg -i ~/Pictures/wollpeper/shiguWollupeper.png -m fill", NULL,
+        "sh", "-c" , "swaybg -i ~/Pictures/yukimi.jpeg -m fill", NULL,
         "sh", "-c", "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
+        "sh", "-c", "gnome-keyring-daemon --start --components=gpg,pkcs11,secrets,ssh", NULL,
         //"sh", "-c", "/usr/bin/lxpolkit", NULL,
         "sh", "-c" , "dunst", NULL,
         "sh", "-c" , "wl-paste --watch cliphist store", NULL,
@@ -56,6 +57,7 @@ static const char *const autostart[] = {
         "sh", "-c" , "/usr/bin/kdeconnect-indicator", NULL,
         "sh", "-c" , "/home/shigure/.config/scripts/abodindwl/wlranjeng.sh", NULL,
         "sh", "-c" , "/home/shigure/.config/scripts/abodindwl/turu.sh", NULL,
+        "sh", "-c" , "foot -s", NULL,
         NULL /* terminate */
 };
 
@@ -80,8 +82,8 @@ static const Rule rules[] = {
 /* layout(s) */
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "><>",      NULL },    /* no layout function means floating behavior */
 	{ "[]=",      tile },
+	{ "><>",      NULL },    /* no layout function means floating behavior */
 	{ "[M]",      monocle },
 };
 
@@ -178,9 +180,9 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 
 /* commands */
 //static const char *termcmd[] = { "foot", NULL };
-static const char *termcmd[] = { "ghostty", NULL };
-static const char *skrinsut[] = {"sh", "-c", "~/.config/labwc/skinshut.sh", NULL};
-static const char *dmenucmd[] = {"sh", "-c", "rofi", "-show", "drun", NULL };
+static const char *termcmd[] = { "footclient", NULL };
+static const char *skrinsut[] = {"sh", "-c", "/home/shigure/.config/labwc/skinshut.sh", NULL};
+static const char *dmenucmd[] = {"sh", "-c", "wmenu", NULL };
 
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
@@ -197,7 +199,7 @@ static const Key keys[] = {
 	{0,				XKB_KEY_XF86MonBrightnessDown,	spawn,	{.v = light_down}},
 
 	//{ MODKEY,                    XKB_KEY_d,          spawn,          {.v = menucmd} },
-	{ MODKEY,                    XKB_KEY_d,          spawn,          SHCMD("fuzzel")},
+	{ MODKEY,                    XKB_KEY_d,          spawn,          SHCMD("rofi -show drun")},
 	{ MODKEY, XKB_KEY_Return,     spawn,          {.v = termcmd} },
 	{ MODKEY, XKB_KEY_p,     togglebar,          {0} },
 	{ MODKEY, XKB_KEY_semicolon,     togglebar,          {0} },
@@ -206,12 +208,12 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_J,          movestack,     {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
-      { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("zen-browser")},
-    { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("thunar")},
-    { 0,                          XKB_KEY_Print ,  spawn,            {.v = skrinsut}},
-    { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("foot /home/shigure/exit.sh")},
-    { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
-    { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
+  { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("zen-browser")},
+  { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("thunar")},
+  { 0,                          XKB_KEY_Print,  spawn,            SHCMD("/home/shigure/.config/labwc/skinshut.sh")},
+  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("ghostty -e /home/shigure/exit.sh")},
+  { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
+  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_d,          incnmaster,     {.i = -1} },
 	{ MODKEY,                    XKB_KEY_h,          setmfact,       {.f = -0.05f} },
