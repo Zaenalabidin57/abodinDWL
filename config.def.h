@@ -15,7 +15,10 @@ static const unsigned int gappx            = 10; /* gap pixel between windows */
 static const int showsystray               = 1; /* 0 means no systray */
 static const int showbar                   = 1; /* 0 means no bar */
 static const int topbar                    = 0; /* 0 means bottom bar */
-static const char *fonts[]                 = {"Monocraft Nerd Font:style:Light:size=12"};
+static const int vertpad                   = 5; /* vertical padding of bar */
+static const int sidepad                   = 10; /* horizontal padding of bar */
+static const int user_bh		   = 30; /* 0 means that dwl will calculate barheight, >= 1 means dwl will use user_bh as the bar height. */
+static const char *fonts[]                 = {"Monocraft Nerd Font:style:Light:size=11"};
 static const float rootcolor[]             = COLOR(0x0009090E);
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
@@ -43,11 +46,12 @@ static const Env envs[] = {
   {"QT_QPA_PLATFORM", "wayland"},
   {"SDL_VIDEODRIVER", "wayland"},
   {"XDG_SESSION_DESKTOP", "wlroots"},
+  {"_JAVA_AWT_WM_NONREPARENTING", "1"},
 };
 
 /* Autostart */
 static const char *const autostart[] = {
-        "sh", "-c" , "swaybg -i ~/Pictures/yukimi.jpeg -m fill", NULL,
+        "sh", "-c" , "swaybg -i ~/Pictures/alice.jpg -m fill", NULL,
         "sh", "-c", "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
         "sh", "-c", "gnome-keyring-daemon --start --components=gpg,pkcs11,secrets,ssh", NULL,
         //"sh", "-c", "/usr/bin/lxpolkit", NULL,
@@ -58,6 +62,13 @@ static const char *const autostart[] = {
         "sh", "-c" , "/home/shigure/.config/scripts/abodindwl/wlranjeng.sh", NULL,
         "sh", "-c" , "/home/shigure/.config/scripts/abodindwl/turu.sh", NULL,
         "sh", "-c" , "foot -s", NULL,
+        "sh", "-c" , "wayland-pipewire-idle-inhibit", NULL,
+        "sh", "-c" , "/usr/bin/pipewire", NULL,
+        "sh", "-c" , "/usr/bin/pipewire-pulse", NULL,
+        "sh", "-c" , "/usr/bin/wireplumber", NULL,
+        "sh", "-c" , "/usr/lib/xdg-desktop-portal", NULL,
+        "sh", "-c" , "/usr/lib/xdg-desktop-portal-wlr -r", NULL,
+       // "sh", "-c" , "xwayland-satellite", NULL,
         NULL /* terminate */
 };
 
@@ -182,7 +193,7 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 //static const char *termcmd[] = { "foot", NULL };
 static const char *termcmd[] = { "footclient", NULL };
 static const char *skrinsut[] = {"sh", "-c", "/home/shigure/.config/labwc/skinshut.sh", NULL};
-static const char *dmenucmd[] = {"sh", "-c", "wmenu", NULL };
+static const char *dmenucmd[] = {"sh", "-c", "rofi -dmenu", NULL };
 
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
@@ -203,15 +214,15 @@ static const Key keys[] = {
 	{ MODKEY, XKB_KEY_Return,     spawn,          {.v = termcmd} },
 	{ MODKEY, XKB_KEY_p,     togglebar,          {0} },
 	{ MODKEY, XKB_KEY_semicolon,     togglebar,          {0} },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_P,     spawn,          SHCMD("swaylock -f -c 000000")},
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_P,     spawn,          SHCMD("swaylock --screenshots --clock --indicator --indicator-radius 100 --indicator-thickness 7 --effect-blur 7x5 --effect-vignette 0.5:0.5 --ring-color bb00cc --key-hl-color 880033 --line-color 00000000 --inside-color 00000088 --separator-color 00000000 --grace 2 --fade-in 0.2")},
 	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_J,          movestack,     {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
   { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("zen-browser")},
   { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("thunar")},
-  { 0,                          XKB_KEY_Print,  spawn,            SHCMD("/home/shigure/.config/labwc/skinshut.sh")},
-  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("ghostty -e /home/shigure/exit.sh")},
+  { 0,                          XKB_KEY_Print,  spawn,            SHCMD("skinsut")},
+  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("foot -e /home/shigure/exit.sh")},
   { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },

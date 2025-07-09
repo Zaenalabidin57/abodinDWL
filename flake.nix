@@ -5,51 +5,52 @@
 
   outputs = { self, nixpkgs }:
     let
-      system = "x86_64-linux"; # Change if you're on ARM/aarch64
-      pkgs = import nixpkgs {
-        inherit system;
-      };
+      # Define the system once for easy reuse.
+      system = "x86_64-linux";
+      # Use legacyPackages for consistency.
+      pkgs = nixpkgs.legacyPackages.${system};
     in
     {
-      devShells.x86_64-linux.default = pkgs.mkShell {
-        packages = [
+      devShells.${system}.default = pkgs.mkShell {
+        # Use buildInputs to make headers and libraries available to the compiler.
+        buildInputs = [
+          # --- Build Tools ---
           pkgs.gcc
           pkgs.gnumake
           pkgs.pkg-config
-          pkgs.wayland
-          pkgs.libinput
-          pkgs.xkeyboard_config
-          pkgs.libxkbcommon
-          pkgs.wayland-protocols
-          pkgs.libinput
-          pkgs.pixman
-          pkgs.wayland-scanner
-          pkgs.wayland-protocols
-          pkgs.fcft
+
+          # --- dwl Dependencies (as found in the Makefile) ---
           pkgs.dbus
-          pkgs.wlroots
-          pkgs.xorg.libxcb
+          pkgs.fcft
           pkgs.libdrm
+          pkgs.libinput
+          pkgs.libxkbcommon
+          pkgs.pixman
+          pkgs.wayland
+          pkgs.wayland-protocols
+
+          # --- wlroots: Specific version required by the build ---
+          # Your dwl build requires version 0.18, so we specify it directly.
+          # The 'wlroots' package in nixpkgs-unstable is likely newer.
+          pkgs.wlroots_0_18
+
+          # --- XCB Libraries ---
+          # These provide the missing xcb-*.pc files.
+          pkgs.xorg.libxcb
+          pkgs.xorg.xcbutil
+          pkgs.xorg.xcbutilcursor
+          pkgs.xorg.xcbutilkeysyms
           pkgs.xorg.xcbutilwm
-          pkgs.xwayland # runtime only, for testing with XWayland
+
+          # For XWayland support (runtime dependency for testing)
+          pkgs.xwayland
         ];
 
         shellHook = ''
           echo "Ready to build dwl!"
-          gcc --version | head -n1
-          make --version | head -n1
+          echo "Using $(gcc --version | head -n1)"
+          fish
         '';
       };
-      userConfigurations."shigure".home.packages = [
-        pkgs.dwl
-        pkgs.neovim
-        pkgs.libinput
-        pkgs.libxkbcommon
-        pkgs.wayland
-        pkgs.wayland-protocols
-        pkgs.xorg.xcbutilwm
-        pkgs.xorg.libxcb
-        pkgs.dbus
-      ];
     };
 }
