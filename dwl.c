@@ -337,6 +337,7 @@ static void drawbars(void);
 static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
+static Client *firstfocused(void);
 static Client *focustop(Monitor *m);
 static void fullscreennotify(struct wl_listener *listener, void *data);
 static void gpureset(struct wl_listener *listener, void *data);
@@ -796,11 +797,15 @@ buttonpress(struct wl_listener *listener, void *data)
 	struct wlr_scene_buffer *buffer;
 	uint32_t mods;
 	Arg arg = {0};
-	Client *c;
+	Client *c, *focused;
 	const Button *b;
 	int traywidth;
 
 	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
+
+  focused = firstfocused();
+  if (focused && focused -> isfullscreen)
+    goto skip_click;
 
 	click = ClkRoot;
 	xytonode(cursor->x, cursor->y, NULL, &c, NULL, NULL, NULL);
@@ -880,6 +885,7 @@ buttonpress(struct wl_listener *listener, void *data)
 	}
 	/* If the event wasn't handled by the compositor, notify the client with
 	 * pointer focus that a button press has occurred */
+skip_click:
 	wlr_seat_pointer_notify_button(seat,
 			event->time_msec, event->button, event->state);
 }
@@ -1737,6 +1743,13 @@ drawbars(void)
 		drawbar(m);
 }
 
+Client *
+firstfocused(void)
+{
+	Client *c = wl_container_of(fstack.next, c, flink);
+	return c;
+}
+
 void
 focusclient(Client *c, int lift)
 {
@@ -1979,10 +1992,18 @@ keybinding(uint32_t mods, xkb_keysym_t sym)
 	 * processing keys, rather than passing them on to the client for its own
 	 * processing.
 	 */
+	Client *c = firstfocused();
 	const Key *k;
 	for (k = keys; k < END(keys); k++) {
 		if (CLEANMASK(mods) == CLEANMASK(k->mod)
 				&& sym == k->keysym && k->func) {
+			if (c && c->isfullscreen) {
+				if (k->func == togglefullscreen) {
+					k->func(&k->arg);
+					return 1;
+				}
+				return 0;
+			}
 			k->func(&k->arg);
 			return 1;
 		}

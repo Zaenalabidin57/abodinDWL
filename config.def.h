@@ -63,11 +63,9 @@ static const char *const autostart[] = {
         "sh", "-c" , "/home/shigure/.config/scripts/abodindwl/turu.sh", NULL,
         "sh", "-c" , "foot -s", NULL,
         "sh", "-c" , "wayland-pipewire-idle-inhibit", NULL,
-        "sh", "-c" , "/usr/bin/pipewire", NULL,
-        "sh", "-c" , "/usr/bin/pipewire-pulse", NULL,
-        "sh", "-c" , "/usr/bin/wireplumber", NULL,
         "sh", "-c" , "/usr/lib/xdg-desktop-portal", NULL,
         "sh", "-c" , "/usr/lib/xdg-desktop-portal-wlr -r", NULL,
+        "sh", "-c" , "foot", NULL,
        // "sh", "-c" , "xwayland-satellite", NULL,
         NULL /* terminate */
 };
@@ -78,8 +76,8 @@ static const Rule rules[] = {
 	/* app_id             title       tags mask     isfloating   monitor */
 	/* examples: */
   { "Gimp",            NULL,       0,                       1,           -1 },
-  { "Firefox",         NULL,       1 << 8,                  0,           -1 },
-  { "Firefox",         "Picture-in-Picture",       1 << 8,                 1,           -1 },
+  { "chromium",         NULL,       1 << 8,                  0,           -1 },
+  { "chromium",         "Picture-in-Picture",       1 << 8,                 1,           -1 },
   { "eww",             NULL,       0,                       1,           -1 },
   { "pavucontrol",             NULL,       0,                       1,           -1 },
   { "feh",             NULL,       0,                       1,           -1 },
@@ -219,7 +217,7 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_J,          movestack,     {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
-  { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("zen-browser")},
+  { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("qutebrowser")},
   { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("thunar")},
   { 0,                          XKB_KEY_Print,  spawn,            SHCMD("skinsut")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("foot -e /home/shigure/exit.sh")},
