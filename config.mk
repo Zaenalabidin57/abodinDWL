@@ -14,4 +14,4 @@ DATADIR = $(PREFIX)/share
 XWAYLAND = -DXWAYLAND
 XLIBS = xcb xcb-icccm xcb-util xcb-cursor xcb-keysyms #xcb-util-wm 
 
-CC = cc
+CC = tcc
