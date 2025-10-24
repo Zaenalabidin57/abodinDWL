@@ -78,6 +78,7 @@ static const Rule rules[] = {
 	/* examples: */
   { "foot",            NULL,       0,                       0,         1,        1,           -1 },
   { "ghostty",            NULL,       0,                       0,         1,        1,           -1 },
+  { "Thunar",            NULL,       0,                       0,         1,        1,           -1 },
   { "Gimp",            NULL,       0,                       1,         0,        0,           -1 },
   { "Firefox",         NULL,       1 << 8,                  0,         0,        0,           -1 },
   { "Firefox",         "Picture-in-Picture",       1 << 8,                 1,   0,        0,           -1 },
@@ -128,7 +129,7 @@ static const int repeat_delay = 200;
 static const int tap_to_click = 1;
 static const int tap_and_drag = 1;
 static const int drag_lock = 1;
-static const int natural_scrolling = 0;
+static const int natural_scrolling = 1;
 static const int disable_while_typing = 1;
 static const int left_handed = 0;
 static const int middle_button_emulation = 0;
@@ -222,8 +223,8 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_J,          movestack,     {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
   { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("qutebrowser")},
-  { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("thunar")},
-  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_N,  spawn,            SHCMD("ghostty -e yazi")},
+  { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("ghostty -e yazi")},
+  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_N,  spawn,            SHCMD("thunar")},
   { 0,                          XKB_KEY_Print,  spawn,            SHCMD("skinsut")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("ghostty -e /home/shigure/exit.sh")},
   { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
