@@ -22,6 +22,8 @@ static const char *fonts[]                 = {"Monocraft Nerd Font:style:Light:s
 static const float rootcolor[]             = COLOR(0x0009090E);
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
+static int enableautoswallow = 1; /* enables autoswallowing newly spawned clients */
+static float swallowborder = 1.0f; /* add this multiplied by borderpx to border when a client is swallowed */
 static uint32_t colors[][3]                = {
 	/*               fg          bg          border    */
 	/*[SchemeNorm] = { 0x6e738d96, 0xcad3f5ff, 0x444444ff },*/
@@ -51,7 +53,7 @@ static const Env envs[] = {
 
 /* Autostart */
 static const char *const autostart[] = {
-        "sh", "-c" , "swaybg -i ~/Pictures/alice.jpg -m fill", NULL,
+        "sh", "-c" , "swaybg -i ~/Pictures/wollpeper/ogata_rina.jpg -m fill", NULL,
         "sh", "-c", "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
         "sh", "-c", "gnome-keyring-daemon --start --components=gpg,pkcs11,secrets,ssh", NULL,
         //"sh", "-c", "/usr/bin/lxpolkit", NULL,
@@ -59,11 +61,11 @@ static const char *const autostart[] = {
         "sh", "-c" , "wl-paste --watch cliphist store", NULL,
         "sh", "-c" , "/usr/bin/kdeconnectd", NULL,
         "sh", "-c" , "/usr/bin/kdeconnect-indicator", NULL,
-        "sh", "-c" , "/home/shigure/.config/scripts/abodindwl/wlranjeng.sh", NULL,
-        "sh", "-c" , "/home/shigure/.config/scripts/abodindwl/turu.sh", NULL,
-        "sh", "-c" , "foot -s", NULL,
+        //"sh", "-c" , "/home/shigure/.config/scripts/abodindwl/wlranjeng.sh", NULL,
+        //"sh", "-c" , "/home/shigure/.config/scripts/abodindwl/turu.sh", NULL,
+        //"sh", "-c" , "foot -s", NULL,
         "sh", "-c" , "wayland-pipewire-idle-inhibit", NULL,
-        "sh", "-c" , "/usr/lib/xdg-desktop-portal", NULL,
+        "sh", "-c" , "/usr/lib/xdg-desktop-portal -r", NULL,
         "sh", "-c" , "/usr/lib/xdg-desktop-portal-wlr -r", NULL,
         "sh", "-c" , "foot", NULL,
        // "sh", "-c" , "xwayland-satellite", NULL,
@@ -71,21 +73,31 @@ static const char *const autostart[] = {
 };
 
 
+static const Menu menus[] = {
+	/* command                            feed function        action function */
+	{ "bemenu -i -l 10 -p Windows",        menuwinfeed,         menuwinaction    },
+	{ "bemenu -i -p Layouts",              menulayoutfeed,      menulayoutaction },
+};
+
+
 /* NOTE: ALWAYS keep a rule declared even if you don't use rules (e.g leave at least one example) */
 static const Rule rules[] = {
-	/* app_id             title       tags mask     isfloating   monitor */
+	/* app_id             title       tags mask     isfloating   isterm   noswallow   monitor */
 	/* examples: */
-  { "Gimp",            NULL,       0,                       1,           -1 },
-  { "chromium",         NULL,       1 << 8,                  0,           -1 },
-  { "chromium",         "Picture-in-Picture",       1 << 8,                 1,           -1 },
-  { "eww",             NULL,       0,                       1,           -1 },
-  { "pavucontrol",             NULL,       0,                       1,           -1 },
-  { "feh",             NULL,       0,                       1,           -1 },
-  { "imv",             NULL,       0,                       1,           -1 },
-  { "imv-dir",             NULL,       0,                       1,           -1 },
-  { "solanum",             NULL,       0,                       1,           -1 },
-  { "Nitrogen",             NULL,       0,                       1,           -1 },
-  { "YouTube Music",             NULL,       0,                      1,           -1 },
+  { "foot",            NULL,       0,                       0,         1,        1,           -1 },
+  { "ghostty",            NULL,       0,                       0,         1,        1,           -1 },
+  { "Thunar",            NULL,       0,                       0,         1,        1,           -1 },
+  { "Gimp",            NULL,       0,                       1,         0,        0,           -1 },
+  { "Firefox",         NULL,       1 << 8,                  0,         0,        0,           -1 },
+  { "Firefox",         "Picture-in-Picture",       1 << 8,                 1,   0,        0,           -1 },
+  { "eww",             NULL,       0,                       1,         0,        0,           -1 },
+  { "pavucontrol",     NULL,       0,                       1,         0,        0,           -1 },
+  { "feh",             NULL,       0,                       1,         0,        0,           -1 },
+  { "imv",             NULL,       0,                       0,         0,        0,           -1 },
+  { "imv-dir",         NULL,       0,                       0,         0,        0,           -1 },
+  { "solanum",         NULL,       0,                       1,         0,        0,           -1 },
+  { "Nitrogen",        NULL,       0,                       1,         0,        0,           -1 },
+  { "YouTube Music",   NULL,       0,                       1,         0,        0,           -1 },
 };
 
 /* layout(s) */
@@ -125,7 +137,7 @@ static const int repeat_delay = 200;
 static const int tap_to_click = 1;
 static const int tap_and_drag = 1;
 static const int drag_lock = 1;
-static const int natural_scrolling = 0;
+static const int natural_scrolling = 1;
 static const int disable_while_typing = 1;
 static const int left_handed = 0;
 static const int middle_button_emulation = 0;
@@ -133,8 +145,8 @@ static const int middle_button_emulation = 0;
 static const char *upvol[]   = { "/usr/bin/pactl", "set-sink-volume", "0", "+5%",     NULL };
 static const char *downvol[] = { "/usr/bin/pactl", "set-sink-volume", "0", "-5%",     NULL };
 static const char *mutevol[] = { "/usr/bin/pactl", "set-sink-mute",   "0", "toggle",  NULL };
-static const char *light_up[] = {"/usr/bin/brightnessctl", "s", "20+", NULL};
-static const char *light_down[] = {"/usr/bin/brightnessctl", "s", "20-", NULL};
+static const char *light_up[] = {"/usr/bin/brightnessctl", "s", "+5%", NULL};
+static const char *light_down[] = {"/usr/bin/brightnessctl", "s", "5-%", NULL};
 static const char *Ppause[] = {"/usr/bin/playerctl", "play-pause", NULL};
 static const char *Pplay[] = {"/usr/bin/playerctl", "play-pause", NULL};
 static const char *audionext[] = {"/usr/bin/playerctl", "next", NULL};
@@ -188,8 +200,8 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
 /* commands */
-//static const char *termcmd[] = { "foot", NULL };
-static const char *termcmd[] = { "footclient", NULL };
+//static const char *termcmd[] = { "ghostty", NULL };
+static const char *termcmd[] = { "ghostty", NULL };
 static const char *skrinsut[] = {"sh", "-c", "/home/shigure/.config/labwc/skinshut.sh", NULL};
 static const char *dmenucmd[] = {"sh", "-c", "rofi -dmenu", NULL };
 
@@ -209,6 +221,7 @@ static const Key keys[] = {
 
 	//{ MODKEY,                    XKB_KEY_d,          spawn,          {.v = menucmd} },
 	{ MODKEY,                    XKB_KEY_d,          spawn,          SHCMD("rofi -show drun")},
+	{ MODKEY,                    XKB_KEY_t,          spawn,          SHCMD("todo")},
 	{ MODKEY, XKB_KEY_Return,     spawn,          {.v = termcmd} },
 	{ MODKEY, XKB_KEY_p,     togglebar,          {0} },
 	{ MODKEY, XKB_KEY_semicolon,     togglebar,          {0} },
@@ -218,28 +231,34 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_J,          movestack,     {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
   { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("qutebrowser")},
-  { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("thunar")},
+  { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("ghostty -e yazi")},
+  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_N,  spawn,            SHCMD("thunar")},
   { 0,                          XKB_KEY_Print,  spawn,            SHCMD("skinsut")},
-  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("foot -e /home/shigure/exit.sh")},
+  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("ghostty -e /home/shigure/exit.sh")},
   { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },
-	{ MODKEY,                    XKB_KEY_d,          incnmaster,     {.i = -1} },
+	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_I,          incnmaster,     {.i = -1} },
 	{ MODKEY,                    XKB_KEY_h,          setmfact,       {.f = -0.05f} },
 	{ MODKEY,                    XKB_KEY_l,          setmfact,       {.f = +0.05f} },
-	{ MODKEY,                    XKB_KEY_Return,     zoom,           {0} },
+	{ MODKEY,                    XKB_KEY_f,     zoom,           {0} },
 	{ MODKEY,                    XKB_KEY_Tab,        view,           {0} },
+	{ WLR_MODIFIER_ALT,                    XKB_KEY_Tab,        menu,           {.v = &menus[0]} },
+	//{ WLR_MODIFIER_CTRL,                    XKB_KEY_Tab,        focusstack,           {.i = 1 }},
+	//{ WLR_MODIFIER_CTRL|WLR_MODIFIER_SHIFT,                    XKB_KEY_Tab,        focusstack,           {.i = -1 }},
 	{ MODKEY,                    XKB_KEY_g,          togglegaps,     {0} },
 	{ MODKEY, XKB_KEY_q,          killclient,     {0} },
-	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_T,          setlayout,      {.v = &layouts[0]} },
-	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_F,          setlayout,      {.v = &layouts[1]} },
-	{ MODKEY,                    XKB_KEY_m,          setlayout,      {.v = &layouts[2]} },
+	//{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_T,          setlayout,      {.v = &layouts[0]} },
+	//{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_F,          setlayout,      {.v = &layouts[1]} },
+	//{ MODKEY,                    XKB_KEY_m,          setlayout,      {.v = &layouts[2]} },
 	{ MODKEY,                    XKB_KEY_space,      setlayout,      {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_S,          addscratchpad,    {0} },
 	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_s,         removescratchpad, {0} },
   { MODKEY,                    XKB_KEY_s,        togglescratchpad, {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_space,      togglefloating, {0} },
-	{ MODKEY,                    XKB_KEY_f,         togglefullscreen, {0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_F,         togglefullscreen, {0} },
+	{ MODKEY,                    XKB_KEY_a,          toggleswallow,  {0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_A,          toggleautoswallow, {0} },
 	{ MODKEY,                    XKB_KEY_0,          view,           {.ui = ~0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_parenright, tag,            {.ui = ~0} },
 	{ MODKEY,                    XKB_KEY_comma,      focusmon,       {.i = WLR_DIRECTION_LEFT} },

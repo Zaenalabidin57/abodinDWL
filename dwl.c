@@ -80,13 +80,14 @@
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
 #define MIN(A, B)               ((A) < (B) ? (A) : (B))
 #define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
-#define VISIBLEON(C, M)         ((M) && (C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]))
+#define VISIBLEON(C, M)         ((M) && (C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]) && !(C)->swallowedby)
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1u << LENGTH(tags)) - 1)
 #define LISTEN(E, L, H)         wl_signal_add((E), ((L)->notify = (H), (L)))
 #define LISTEN_STATIC(E, H)     do { static struct wl_listener _l = {.notify = (H)}; wl_signal_add((E), &_l); } while (0)
 #define TEXTW(mon, text)        (drwl_font_getwidth(mon->drw, text) + mon->lrpad)
+#define BORDERPX(C)             (borderpx + ((C)->swallowing ? (int)ceilf(swallowborder * (C)->swallowing->bw) : 0))
 
 /* enums */
 enum { SchemeNorm, SchemeSel, SchemeUrg }; /* color schemes */
@@ -116,7 +117,8 @@ typedef struct {
 
 typedef struct Pertag Pertag;
 typedef struct Monitor Monitor;
-typedef struct {
+typedef struct Client Client;
+struct Client {
 	/* Must keep these three elements in this order */
 	unsigned int type; /* XDGShell or X11* */
 	struct wlr_box geom; /* layout-relative, includes border */
@@ -152,8 +154,12 @@ typedef struct {
 	unsigned int bw;
 	uint32_t tags;
 	int isfloating, isurgent, isfullscreen;
+	int isterm, noswallow;
 	uint32_t resize; /* configure serial of a pending resize */
 	struct wl_list link_temp;
+	pid_t pid;
+	Client *swallowing;  /* client being hidden */
+	Client *swallowedby;
 } Client;
 
 typedef struct {
@@ -263,6 +269,8 @@ typedef struct {
 	const char *title;
 	uint32_t tags;
 	int isfloating;
+	int isterm;
+	int noswallow;
 	int monitor;
 } Rule;
 
@@ -279,6 +287,12 @@ typedef struct {
 	struct wl_listener unlock;
 	struct wl_listener destroy;
 } SessionLock;
+
+typedef struct {
+	const char *cmd; /* command to run a menu */
+	void (*feed)(FILE *f); /* feed input to menu */
+	void (*action)(char *line); /* do action based on menu output */
+} Menu;
 
 /* function declarations */
 static void addscratchpad(const Arg *arg);
@@ -332,6 +346,7 @@ static void destroysessionlock(struct wl_listener *listener, void *data);
 static void destroysessionmgr(struct wl_listener *listener, void *data);
 static void destroykeyboardgroup(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
+static Client *firstfocused(void);
 static void drawbar(Monitor *m);
 static void drawbars(void);
 static void focusclient(Client *c, int lift);
@@ -352,6 +367,12 @@ static void killclient(const Arg *arg);
 static void locksession(struct wl_listener *listener, void *data);
 static void mapnotify(struct wl_listener *listener, void *data);
 static void maximizenotify(struct wl_listener *listener, void *data);
+static void menu(const Arg *arg);
+static int menuread(int fd, uint32_t mask, void *data);
+static void menuwinfeed(FILE *f);
+static void menuwinaction(char *line);
+static void menulayoutfeed(FILE *f);
+static void menulayoutaction(char *line);
 static void monocle(Monitor *m);
 static void movestack(const Arg *arg);
 static void motionabsolute(struct wl_listener *listener, void *data);
@@ -362,6 +383,7 @@ static void moveresize(const Arg *arg);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
+static pid_t parentpid(pid_t pid);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void powermgrsetmode(struct wl_listener *listener, void *data);
@@ -387,13 +409,17 @@ static void setsel(struct wl_listener *listener, void *data);
 static void setup(void);
 static void spawn(const Arg *arg);
 static void startdrag(struct wl_listener *listener, void *data);
+static void swallow(Client *c, Client *toswallow);
 static int statusin(int fd, unsigned int mask, void *data);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
+static Client *termforwin(Client *c);
 static void tile(Monitor *m);
 static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
+static void toggleswallow(const Arg *arg);
+static void toggleautoswallow(const Arg *arg);
 static void togglegaps(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
@@ -489,6 +515,11 @@ static const struct wlr_buffer_impl buffer_impl = {
 static struct wl_list scratchpad_clients;
 static int scratchpad_visible = 1;
 
+static const Menu *menu_current;
+static int menu_fd;
+static pid_t menu_pid;
+static struct wl_event_source *menu_source;
+
 #ifdef XWAYLAND
 static void activatex11(struct wl_listener *listener, void *data);
 static void associatex11(struct wl_listener *listener, void *data);
@@ -555,17 +586,27 @@ applyrules(Client *c)
 	if (!(title = client_get_title(c)))
 		title = broken;
 
+	c->pid = client_get_pid(c);
+
 	for (r = rules; r < END(rules); r++) {
 		if ((!r->title || strstr(title, r->title))
 				&& (!r->id || strstr(appid, r->id))) {
 			c->isfloating = r->isfloating;
 			newtags |= r->tags;
+			c->isterm = r->isterm;
+			c->noswallow = r->noswallow;
 			i = 0;
 			wl_list_for_each(m, &mons, link) {
 				if (r->monitor == i++)
 					mon = m;
 			}
 		}
+	}
+	if (enableautoswallow && !c->noswallow && !c->isfloating &&
+			!c->surface.xdg->initial_commit) {
+		Client *p = termforwin(c);
+		if (p)
+			swallow(c, p);
 	}
 	setmon(c, mon, newtags);
 }
@@ -797,15 +838,16 @@ buttonpress(struct wl_listener *listener, void *data)
 	struct wlr_scene_buffer *buffer;
 	uint32_t mods;
 	Arg arg = {0};
-	Client *c, *focused;
+	Client *c;
+	Client *focused;
 	const Button *b;
 	int traywidth;
 
 	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
 
-  focused = firstfocused();
-  if (focused && focused -> isfullscreen)
-    goto skip_click;
+	focused = firstfocused();
+	if (focused && focused->isfullscreen)
+		goto skip_click;
 
 	click = ClkRoot;
 	xytonode(cursor->x, cursor->y, NULL, &c, NULL, NULL, NULL);
@@ -971,8 +1013,10 @@ cleanupmon(struct wl_listener *listener, void *data)
 			wlr_layer_surface_v1_destroy(l->layer_surface);
 	}
 
-	for (i = 0; i < LENGTH(m->pool); i++)
-		wlr_buffer_drop(&m->pool[i]->base);
+	for (i = 0; i < LENGTH(m->pool); i++) {
+		if (m->pool[i])
+			wlr_buffer_drop(&m->pool[i]->base);
+	}
 
 	if (showsystray)
 		destroytray(m->tray);
@@ -1452,6 +1496,8 @@ void
 cursorwarptohint(void)
 {
 	Client *c = NULL;
+	if (!active_constraint)
+		return;
 	double sx = active_constraint->current.cursor_hint.x;
 	double sy = active_constraint->current.cursor_hint.y;
 
@@ -1635,6 +1681,13 @@ dirtomon(enum wlr_direction dir)
 			selmon->wlr_output, selmon->m.x, selmon->m.y)))
 		return next->data;
 	return selmon;
+}
+
+Client *
+firstfocused(void)
+{
+	Client *c = wl_container_of(fstack.next, c, flink);
+	return c;
 }
 
 void
@@ -2205,6 +2258,153 @@ maximizenotify(struct wl_listener *listener, void *data)
 }
 
 void
+menu(const Arg *arg)
+{
+	FILE *f;
+	int fd_right[2], fd_left[2];
+
+	if (menu_current != NULL) {
+		wl_event_source_remove(menu_source);
+		close(menu_fd);
+		kill(menu_pid, SIGTERM);
+		menu_current = NULL;
+		if (!arg->v)
+			return;
+	}
+
+	if (pipe(fd_right) == -1 || pipe(fd_left) == -1)
+		return;
+	if ((menu_pid = fork()) == -1)
+		return;
+	if (menu_pid == 0) {
+		close(fd_right[1]);
+		close(fd_left[0]);
+		dup2(fd_right[0], STDIN_FILENO);
+		close(fd_right[0]);
+		dup2(fd_left[1], STDOUT_FILENO);
+		close(fd_left[1]);
+		execl("/bin/sh", "/bin/sh", "-c", ((Menu *)(arg->v))->cmd, NULL);
+		die("dwl: execl %s failed:", "/bin/sh");
+	}
+
+	close(fd_right[0]);
+	close(fd_left[1]);
+	menu_fd = fd_left[0];
+	if (fd_set_nonblock(menu_fd) == -1)
+		return;
+	if (!(f = fdopen(fd_right[1], "w")))
+		return;
+	menu_current = arg->v;
+	menu_current->feed(f);
+	fclose(f);
+	menu_source = wl_event_loop_add_fd(event_loop,
+			menu_fd, WL_EVENT_READABLE, menuread, NULL);
+}
+
+int
+menuread(int fd, uint32_t mask, void *data)
+{
+	char *s;
+	int n;
+	static char line[512];
+	static int i = 0;
+
+	/* If we got data, try to read and look for newline in the new chunk */
+	if (mask & WL_EVENT_READABLE) {
+		if ((n = read(menu_fd, line + i, LENGTH(line) - 1 - i)) == -1) {
+			if (errno != EAGAIN) {
+				i = 0;
+				menu(&(const Arg){ .v = NULL });
+			}
+			return 0;
+		}
+		line[i + n] = '\0';
+		if ((s = strchr(line + i, '\n'))) {
+			i = 0;
+			*s = '\0';
+			menu_current->action(line);
+			return 0;
+		}
+		i += n;
+	}
+
+	/* On EOF/HANGUP, treat any pending buffer as a complete selection */
+	if (mask & (WL_EVENT_HANGUP | WL_EVENT_ERROR)) {
+		if (i > 0) {
+			line[i] = '\0';
+			menu_current->action(line);
+			i = 0;
+		}
+		menu(&(const Arg){ .v = NULL });
+	}
+	return 0;
+}
+
+void
+menuwinfeed(FILE *f)
+{
+	Client *c;
+	const char *title, *appid;
+
+	wl_list_for_each(c, &fstack, flink) {
+		if (!(title = client_get_title(c)))
+			continue;
+		fprintf(f, "%s", title);
+		if ((appid = client_get_appid(c)))
+			fprintf(f, " | %s", appid);
+		fputc('\n', f);
+	}
+}
+
+void
+menuwinaction(char *line)
+{
+	Client *c;
+	const char *appid, *title;
+	static char buf[512];
+
+	wl_list_for_each(c, &fstack, flink) {
+		if (!(title = client_get_title(c)))
+			continue;
+		appid = client_get_appid(c);
+		snprintf(buf, LENGTH(buf) - 1, "%s%s%s",
+				title, appid ? " | " : "", appid ? appid : "");
+		if (strcmp(line, buf) == 0)
+			goto found;
+	}
+	return;
+
+found:
+	if (!c->mon)
+		return;
+	wl_list_remove(&c->flink);
+	wl_list_insert(&fstack, &c->flink);
+	selmon = c->mon;
+	view(&(const Arg){ .ui = c->tags });
+}
+
+void
+menulayoutfeed(FILE *f)
+{
+	const Layout *l;
+	for (l = layouts; l < END(layouts); l++)
+		fprintf(f, "%s\n", l->symbol);
+}
+
+void
+menulayoutaction(char *line)
+{
+	const Layout *l;
+	for (l = layouts; l < END(layouts); l++)
+		if (strcmp(line, l->symbol) == 0)
+			goto found;
+	return;
+
+found:
+	setlayout(&(const Arg){ .v = l });
+}
+
+void
 monocle(Monitor *m)
 {
 	Client *c;
@@ -2474,6 +2674,20 @@ outputmgrtest(struct wl_listener *listener, void *data)
 {
 	struct wlr_output_configuration_v1 *config = data;
 	outputmgrapplyortest(config, 1);
+}
+
+pid_t
+parentpid(pid_t pid)
+{
+	unsigned int v = 0;
+	FILE *f;
+	char buf[256];
+	snprintf(buf, sizeof(buf) - 1, "/proc/%u/stat", (unsigned)pid);
+	if (!(f = fopen(buf, "r")))
+		return 0;
+	fscanf(f, "%*u %*s %*c %u", &v);
+	fclose(f);
+	return (pid_t)v;
 }
 
 void
@@ -2756,7 +2970,7 @@ setfullscreen(Client *c, int fullscreen)
 	c->isfullscreen = fullscreen;
 	if (!c->mon || !client_surface(c)->mapped)
 		return;
-	c->bw = fullscreen ? 0 : borderpx;
+	c->bw = fullscreen ? 0 : BORDERPX(c);
 	client_set_fullscreen(c, fullscreen);
 	wlr_scene_node_reparent(&c->scene->node, layers[c->isfullscreen
 			? LyrFS : c->isfloating ? LyrFloat : LyrTile]);
@@ -2834,6 +3048,9 @@ setmon(Client *c, Monitor *m, uint32_t newtags)
 		setfloating(c, c->isfloating);
 	}
 	focusclient(focustop(selmon), 1);
+
+	if (c->swallowing)
+		setmon(c->swallowing, m, newtags);
 }
 
 void
@@ -3143,6 +3360,44 @@ statusin(int fd, unsigned int mask, void *data)
 }
 
 void
+swallow(Client *c, Client *toswallow)
+{
+	/* Do not allow a client to swallow itself */
+	if (c == toswallow)
+		return;
+
+	/* Swallow */
+	if (toswallow && !c->swallowing) {
+		c->swallowing = toswallow;
+		toswallow->swallowedby = c;
+		toswallow->mon = c->mon;
+		toswallow->mon = c->mon;
+		wl_list_remove(&c->link);
+		wl_list_insert(&c->swallowing->link, &c->link);
+		wl_list_remove(&c->flink);
+		wl_list_insert(&c->swallowing->flink, &c->flink);
+		c->bw = BORDERPX(c);
+		c->tags = toswallow->tags;
+		c->isfloating = toswallow->isfloating;
+		c->geom = toswallow->geom;
+		setfullscreen(toswallow, 0);
+	}
+
+	/* Unswallow */
+	else if (c->swallowing) {
+		wl_list_remove(&c->swallowing->link);
+		wl_list_insert(&c->link, &c->swallowing->link);
+		wl_list_remove(&c->swallowing->flink);
+		wl_list_insert(&c->flink, &c->swallowing->flink);
+		c->swallowing->tags = c->tags;
+		c->swallowing->swallowedby = NULL;
+		c->swallowing = NULL;
+		c->bw = BORDERPX(c);
+		setfullscreen(c, 0);
+	}
+}
+
+void
 tag(const Arg *arg)
 {
 	Client *sel = focustop(selmon);
@@ -3161,6 +3416,40 @@ tagmon(const Arg *arg)
 	Client *sel = focustop(selmon);
 	if (sel)
 		setmon(sel, dirtomon(arg->i), 0);
+}
+
+Client *
+termforwin(Client *c)
+{
+	Client *p;
+	pid_t pid;
+	pid_t pids[32];
+	size_t i, pids_len;
+
+	if (!c->pid || c->isterm)
+		return NULL;
+
+	/* Get all parent pids */
+	pids_len = 0;
+	pid = c->pid;
+	while (pids_len < LENGTH(pids)) {
+		pid = parentpid(pid);
+		if (!pid)
+			break;
+		pids[pids_len++] = pid;
+	}
+
+	/* Find closest parent */
+	for (i = 0; i < pids_len; i++) {
+		wl_list_for_each(p, &clients, link) {
+			if (!p->pid || !p->isterm || p->swallowedby)
+				continue;
+			if (pids[i] == p->pid)
+				return p;
+		}
+	}
+
+	return NULL;
 }
 
 void
@@ -3234,6 +3523,32 @@ togglegaps(const Arg *arg)
 {
 	selmon->gaps = !selmon->gaps;
 	arrange(selmon);
+}
+
+void
+toggleswallow(const Arg *arg)
+{
+	Client *c, *sel = focustop(selmon);
+	if (!sel)
+		return;
+
+	if (sel->swallowing) {
+		swallow(sel, NULL);
+	} else {
+		wl_list_for_each(c, &sel->flink, flink) {
+			if (&c->flink == &fstack)
+				continue; /* wrap past the sentinel node */
+			if (VISIBLEON(c, selmon))
+				break; /* found it */
+		}
+		swallow(sel, c);
+	}
+}
+
+void
+toggleautoswallow(const Arg *arg)
+{
+	enableautoswallow = !enableautoswallow;
 }
 
 void
@@ -3314,6 +3629,12 @@ unmapnotify(struct wl_listener *listener, void *data)
 	if (c == grabc) {
 		cursor_mode = CurNormal;
 		grabc = NULL;
+	}
+
+	if (c->swallowing) {
+		swallow(c, NULL);
+	} else if (c->swallowedby) {
+		swallow(c->swallowedby, NULL);
 	}
 
 	if (client_is_unmanaged(c)) {
