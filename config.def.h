@@ -67,7 +67,6 @@ static const char *const autostart[] = {
         "sh", "-c" , "wayland-pipewire-idle-inhibit", NULL,
         "sh", "-c" , "/usr/lib/xdg-desktop-portal -r", NULL,
         "sh", "-c" , "/usr/lib/xdg-desktop-portal-wlr -r", NULL,
-        "sh", "-c" , "foot", NULL,
        // "sh", "-c" , "xwayland-satellite", NULL,
         NULL /* terminate */
 };
