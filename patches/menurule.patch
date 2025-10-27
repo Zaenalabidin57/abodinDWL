@@ -1,0 +1,167 @@
+From 7b578d9f4647d84f79a2e8a46a1c65cbacf8d90b Mon Sep 17 00:00:00 2001
+From: Nikita Ivanov <nikita.vyach.ivanov@gmail.com>
+Date: Wed, 19 Mar 2025 02:28:46 +0100
+Subject: [PATCH] Add menurule to tweak rules at runtime
+
+---
+ config.def.h |   2 +
+ dwl.c        | 116 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 118 insertions(+)
+
+diff --git a/config.def.h b/config.def.h
+index e03a754..77b10ff 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -24,6 +24,7 @@ static const Menu menus[] = {
+ 	/* command                            feed function        action function */
+ 	{ "wmenu -i -l 10 -p Windows",        menuwinfeed,         menuwinaction    },
+ 	{ "wmenu -i -p Layouts",              menulayoutfeed,      menulayoutaction },
++	{ "wmenu -i -l 10 -p Rules",          menurulefeed,        menuruleaction },
+ };
+ 
+ /* Max amount of dynamically added rules */
+@@ -151,6 +152,7 @@ static const Key keys[] = {
+ 	{ MODKEY,                    XKB_KEY_space,      setlayout,      {0} },
+ 	{ MODKEY,                    XKB_KEY_o,          menu,           {.v = &menus[0]} },
+ 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_O,          menu,           {.v = &menus[1]} },
++	{ MODKEY,                    XKB_KEY_r,          menu,           {.v = &menus[2]} },
+ 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_space,      togglefloating, {0} },
+ 	{ MODKEY,                    XKB_KEY_e,         togglefullscreen, {0} },
+ 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_R,          setruleisfloating,{0} },
+diff --git a/dwl.c b/dwl.c
+index be007d8..df4901f 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -316,6 +316,8 @@ static void menuwinfeed(FILE *f);
+ static void menuwinaction(char *line);
+ static void menulayoutfeed(FILE *f);
+ static void menulayoutaction(char *line);
++static void menurulefeed(FILE *f);
++static void menuruleaction(char *line);
+ static void monocle(Monitor *m);
+ static void motionabsolute(struct wl_listener *listener, void *data);
+ static void motionnotify(uint32_t time, struct wlr_input_device *device, double sx,
+@@ -1974,6 +1976,120 @@ found:
+ 	setlayout(&(const Arg){ .v = l });
+ }
+ 
++void
++menurulefeed(FILE *f)
++{
++	Rule t, *p, *r;
++	const char *appid, *title;
++	static char buf[515];
++	Client *c = focustop(selmon);
++	int n, wid = 0, match;
++
++	t = (Rule){ 0 };
++	t.monitor = -1;
++	if (c) {
++		t.id    = client_get_appid(c);
++		t.title = client_get_title(c);
++		appid   = t.id    ? t.id    : broken;
++		title   = t.title ? t.title : broken;
++	}
++
++	for (p = drules; p <= drules + druleslen; p++) {
++		r = (p == drules + druleslen) ? &t : p;
++		n = 0;
++		n += strlen(r->id ? r->id : "NULL");
++		n += strlen(r->title ? r->title : "NULL");
++		n += 3;
++		wid = MAX(wid, n);
++	}
++	wid = MIN(wid, 40);
++
++	for (p = drules; p <= drules + druleslen; p++) {
++		match = 0;
++		/* Check if rule applies to the focused client */
++		if (c && p < drules + druleslen) {
++			match = (!p->title || strstr(title, p->title))
++				&& (!p->id || strstr(appid, p->id));
++			if (match && p->id)
++				t.id = NULL;
++			if (match && p->title)
++				t.title = NULL;
++		}
++		r = (p == drules + druleslen) ? &t : p;
++		if (r == &t && t.id)
++			t.title = NULL;
++		/* Do not suggest to add a new empty rule */
++		if (r == &t && !(t.id || t.title))
++			continue;
++		if (r->id && r->title &&
++				strcmp(r->id, "removedrule") == 0 && strcmp(r->title, "removedrule") == 0)
++			continue;
++		snprintf(buf, LENGTH(buf) - 1, "[%s|%s]",
++			r->id ? r->id : "NULL", r->title ? r->title : "NULL");
++		fprintf(f, "%-*s "
++			" tags:%-4"PRIi32
++			" isfloating:%-2d"
++			" monitor:%-2d"
++			"%s\n", wid, buf,
++			r->tags,
++			r->isfloating,
++			r->monitor,
++			(r == &t) ? "  (NEW)" : match ? "  <" : "");
++	}
++}
++
++void
++menuruleaction(char *line)
++{
++	Rule r, *f;
++	static char appid[256], title[256];
++	int del = 0, end;
++
++	if (line[0] == '-') {
++		del = 1;
++		line++;
++	}
++	end = 0;
++	sscanf(line, "[%255[^|]|%255[^]]]"
++		" tags:%"SCNu32
++		" isfloating:%d"
++		" monitor:%d"
++		"%n", appid, title,
++		&r.tags,
++		&r.isfloating,
++		&r.monitor,
++		&end);
++
++	/* Full line was not parsed, exit */
++	if (!end)
++		return;
++
++	r.id    = (strcmp(appid, "NULL") != 0) ? appid : NULL;
++	r.title = (strcmp(title, "NULL") != 0) ? title : NULL;
++
++	/* Find which rule we are trying to edit */
++	for (f = drules; f < drules + druleslen; f++)
++		if (((!r.title && !f->title) || (r.title && f->title && !strcmp(r.title, f->title)))
++				&& (((!r.id && !f->id) || (r.id && f->id && !strcmp(r.id, f->id)))))
++			goto found;
++
++	if (druleslen >= LENGTH(rules) + RULES_MAX)
++		return; /* No free slots left */
++
++	f = drules + druleslen++;
++	f->id    = r.id    ? strdup(r.id)    : NULL;
++	f->title = r.title ? strdup(r.title) : NULL;
++
++found:
++	if (del) {
++		f->id = f->title = "removedrule";
++		return;
++	}
++	r.id    = f->id;
++	r.title = f->title;
++	*f = r;
++}
++
+ void
+ monocle(Monitor *m)
+ {
+-- 
+2.49.0
+

@@ -1,5 +1,6 @@
 /* Taken from https://github.com/djpohly/dwl/issues/466 */
 
+
 #define COLOR(hex)    { ((hex >> 24) & 0xFF) / 255.0f, \
                         ((hex >> 16) & 0xFF) / 255.0f, \
                         ((hex >> 8) & 0xFF) / 255.0f, \
@@ -33,6 +34,9 @@ static uint32_t colors[][3]                = {
 	[SchemeUrg]  = { 0,          0,          0x770000ff },
 };
 // aku nak sikit aksi
+
+/* Max amount of dynamically added rules */
+#define RULES_MAX 10
 
 /* tagging - TAGCOUNT must be no greater than 31 */
 #define  TAGCOUNT (5)
@@ -76,6 +80,7 @@ static const Menu menus[] = {
 	/* command                            feed function        action function */
 	{ "bemenu -i -l 10 -p Windows",        menuwinfeed,         menuwinaction    },
 	{ "bemenu -i -p Layouts",              menulayoutfeed,      menulayoutaction },
+	{ "bemenu -i -l 10  -p Rules",  menurulefeed,        menuruleaction },
 };
 
 
@@ -84,6 +89,7 @@ static const Rule rules[] = {
 	/* app_id             title       tags mask     isfloating   isterm   noswallow   monitor */
 	/* examples: */
   { "foot",            NULL,       0,                       0,         1,        1,           -1 },
+  { "prostat",            NULL,       0,                       1,         1,        1,           -1 },
   { "ghostty",            NULL,       0,                       0,         1,        1,           -1 },
   { "Thunar",            NULL,       0,                       0,         1,        1,           -1 },
   { "Gimp",            NULL,       0,                       1,         0,        0,           -1 },
@@ -186,6 +192,8 @@ LIBINPUT_CONFIG_TAP_MAP_LMR -- 1/2/3 finger tap maps to left/middle/right
 */
 static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TAP_MAP_LRM;
 
+static const int cursor_timeout = 5;
+
 /* If you want to use the windows key for MODKEY, use WLR_MODIFIER_LOGO */
 #define MODKEY WLR_MODIFIER_LOGO
 
@@ -222,6 +230,7 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_d,          spawn,          SHCMD("rofi -show drun")},
 	{ MODKEY,                    XKB_KEY_t,          spawn,          SHCMD("todo")},
 	{ MODKEY, XKB_KEY_Return,     spawn,          {.v = termcmd} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return,     spawn,          SHCMD("foot --app-id=prostat") },
 	{ MODKEY, XKB_KEY_p,     togglebar,          {0} },
 	{ MODKEY, XKB_KEY_semicolon,     togglebar,          {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_P,     spawn,          SHCMD("swaylock --screenshots --clock --indicator --indicator-radius 100 --indicator-thickness 7 --effect-blur 7x5 --effect-vignette 0.5:0.5 --ring-color bb00cc --key-hl-color 880033 --line-color 00000000 --inside-color 00000088 --separator-color 00000000 --grace 2 --fade-in 0.2")},
@@ -235,7 +244,8 @@ static const Key keys[] = {
   { 0,                          XKB_KEY_Print,  spawn,            SHCMD("skinsut")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("ghostty -e /home/shigure/exit.sh")},
   { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
-  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
+  { MODKEY,                           XKB_KEY_w,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
+  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  menu,            {.v = &menus[2]}},
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_I,          incnmaster,     {.i = -1} },
 	{ MODKEY,                    XKB_KEY_h,          setmfact,       {.f = -0.05f} },

@@ -361,6 +361,8 @@ static void focusstack(const Arg *arg);
 static Client *focustop(Monitor *m);
 static void fullscreennotify(struct wl_listener *listener, void *data);
 static void gpureset(struct wl_listener *listener, void *data);
+static void handlecursoractivity(void);
+static int hidecursor(void *data);
 static void handlesig(int signo);
 static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
@@ -378,6 +380,8 @@ static void menuwinfeed(FILE *f);
 static void menuwinaction(char *line);
 static void menulayoutfeed(FILE *f);
 static void menulayoutaction(char *line);
+static void menurulefeed(FILE *f);
+static void menuruleaction(char *line);
 static void monocle(Monitor *m);
 static void movestack(const Arg *arg);
 static void motionabsolute(struct wl_listener *listener, void *data);
@@ -452,6 +456,9 @@ static void fclosenotify(struct wl_listener *listener, void *data);
 static void fdestroynotify(struct wl_listener *listener, void *data);
 static void ffullscreennotify(struct wl_listener *listener, void *data);
 
+static Rule *drules;
+static int druleslen;
+
 /* variables */
 static const char broken[] = "broken";
 static pid_t child_pid = -1;
@@ -491,6 +498,14 @@ static struct wlr_pointer_constraint_v1 *active_constraint;
 
 static struct wlr_cursor *cursor;
 static struct wlr_xcursor_manager *cursor_mgr;
+static struct wl_event_source *hide_source;
+static bool cursor_hidden = false;
+static struct {
+	enum wp_cursor_shape_device_v1_shape shape;
+	struct wlr_surface *surface;
+	int hotspot_x;
+	int hotspot_y;
+} last_cursor;
 
 static struct wlr_scene_rect *root_bg;
 static struct wlr_session_lock_manager_v1 *session_lock_mgr;
@@ -761,6 +776,7 @@ axisnotify(struct wl_listener *listener, void *data)
 	 * for example when you move the scroll wheel. */
 	struct wlr_pointer_axis_event *event = data;
 	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
+  handlecursoractivity();
 	/* TODO: allow usage of scroll whell for mousebindings, it can be implemented
 	 * checking the event's orientation and the delta of the event */
 	/* Notify the client with pointer focus of the axis event. */
@@ -861,6 +877,7 @@ buttonpress(struct wl_listener *listener, void *data)
 	int traywidth;
 
 	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
+	handlecursoractivity();
 
 	focused = firstfocused();
 	if (focused && focused->isfullscreen)
@@ -2015,6 +2032,32 @@ handlesig(int signo)
 }
 
 void
+handlecursoractivity(void)
+{
+	wl_event_source_timer_update(hide_source, cursor_timeout * 1000);
+
+	if (!cursor_hidden)
+		return;
+
+	cursor_hidden = false;
+
+	if (last_cursor.shape)
+		wlr_cursor_set_xcursor(cursor, cursor_mgr,
+				wlr_cursor_shape_v1_name(last_cursor.shape));
+	else
+		wlr_cursor_set_surface(cursor, last_cursor.surface,
+				last_cursor.hotspot_x, last_cursor.hotspot_y);
+}
+
+int
+hidecursor(void *data)
+{
+	wlr_cursor_unset_image(cursor);
+	cursor_hidden = true;
+	return 1;
+}
+
+void
 incnmaster(const Arg *arg)
 {
 	if (!arg || !selmon)
@@ -2423,6 +2466,128 @@ found:
 }
 
 void
+menurulefeed(FILE *f)
+{
+	Rule t, *p, *r;
+	const char *appid, *title;
+	static char buf[515];
+	Client *c = focustop(selmon);
+	int n, wid = 0, match;
+
+	t = (Rule){ 0 };
+	t.monitor = -1;
+	if (c) {
+		t.id    = client_get_appid(c);
+		t.title = client_get_title(c);
+		appid   = t.id    ? t.id    : broken;
+		title   = t.title ? t.title : broken;
+	}
+
+	for (p = drules; p <= drules + druleslen; p++) {
+		r = (p == drules + druleslen) ? &t : p;
+		n = 0;
+		n += strlen(r->id ? r->id : "NULL");
+		n += strlen(r->title ? r->title : "NULL");
+		n += 3;
+		wid = MAX(wid, n);
+	}
+	wid = MIN(wid, 40);
+
+	for (p = drules; p <= drules + druleslen; p++) {
+		match = 0;
+		/* Check if rule applies to the focused client */
+		if (c && p < drules + druleslen) {
+			match = (!p->title || strstr(title, p->title))
+				&& (!p->id || strstr(appid, p->id));
+			if (match && p->id)
+				t.id = NULL;
+			if (match && p->title)
+				t.title = NULL;
+		}
+		r = (p == drules + druleslen) ? &t : p;
+		if (r == &t && t.id)
+			t.title = NULL;
+		/* Do not suggest to add a new empty rule */
+		if (r == &t && !(t.id || t.title))
+			continue;
+		if (r->id && r->title &&
+				strcmp(r->id, "removedrule") == 0 && strcmp(r->title, "removedrule") == 0)
+			continue;
+		snprintf(buf, LENGTH(buf) - 1, "[%s|%s]",
+			r->id ? r->id : "NULL", r->title ? r->title : "NULL");
+		fprintf(f, "%-*s "
+			" tags:%-4"PRIi32
+			" isfloating:%-2d"
+			" isterm:%-2d"
+			" noswallow:%-2d"
+			" monitor:%-2d"
+			"%s\n", wid, buf,
+			r->tags,
+			r->isfloating,
+			r->isterm,
+			r->noswallow,
+			r->monitor,
+			(r == &t) ? "  (NEW)" : match ? "  <" : "");
+	}
+}
+
+void
+menuruleaction(char *line)
+{
+	Rule r, *f;
+	static char appid[256], title[256];
+	int del = 0, end;
+
+	if (line[0] == '-') {
+		del = 1;
+		line++;
+	}
+	end = 0;
+	sscanf(line, "[%255[^|]|%255[^]]]"
+		" tags:%"SCNu32
+		" isfloating:%d"
+		" isterm:%d"
+		" noswallow:%d"
+		" monitor:%d"
+		"%n", appid, title,
+		&r.tags,
+		&r.isfloating,
+		&r.isterm,
+		&r.noswallow,
+		&r.monitor,
+		&end);
+
+	/* Full line was not parsed, exit */
+	if (!end)
+		return;
+
+	r.id    = (strcmp(appid, "NULL") != 0) ? appid : NULL;
+	r.title = (strcmp(title, "NULL") != 0) ? title : NULL;
+
+	/* Find which rule we are trying to edit */
+	for (f = drules; f < drules + druleslen; f++)
+		if (((!r.title && !f->title) || (r.title && f->title && !strcmp(r.title, f->title)))
+				&& (((!r.id && !f->id) || (r.id && f->id && !strcmp(r.id, f->id)))))
+			goto found;
+
+	if (druleslen >= LENGTH(rules) + RULES_MAX)
+		return; /* No free slots left */
+
+	f = drules + druleslen++;
+	f->id    = r.id    ? strdup(r.id)    : NULL;
+	f->title = r.title ? strdup(r.title) : NULL;
+
+found:
+	if (del) {
+		f->id = f->title = "removedrule";
+		return;
+	}
+	r.id    = f->id;
+	r.title = f->title;
+	*f = r;
+}
+
+void
 monocle(Monitor *m)
 {
 	Client *c;
@@ -2544,6 +2709,7 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 
 		wlr_cursor_move(cursor, device, dx, dy);
 		wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
+		handlecursoractivity();
 
 		/* Update selmon (even while dragging a window) */
 		if (sloppyfocus)
@@ -2568,7 +2734,7 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 	/* If there's no client surface under the cursor, set the cursor image to a
 	 * default. This is what makes the cursor image appear when you move it
 	 * off of a client or over its border. */
-	if (!surface && !seat->drag)
+	if (!surface && !seat->drag && !cursor_hidden)
 		wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
 
 	pointerfocus(c, surface, sx, sy, time);
@@ -2915,6 +3081,7 @@ run(char *startup_cmd)
 	 * monitor when displayed here */
 	wlr_cursor_warp_closest(cursor, NULL, cursor->x, cursor->y);
 	wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
+	handlecursoractivity();
 
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
@@ -2938,9 +3105,16 @@ setcursor(struct wl_listener *listener, void *data)
 	 * use the provided surface as the cursor image. It will set the
 	 * hardware cursor on the output that it's currently on and continue to
 	 * do so as the cursor moves between outputs. */
-	if (event->seat_client == seat->pointer_state.focused_client)
-		wlr_cursor_set_surface(cursor, event->surface,
-				event->hotspot_x, event->hotspot_y);
+	if (event->seat_client == seat->pointer_state.focused_client) {
+		last_cursor.shape = 0;
+		last_cursor.surface = event->surface;
+		last_cursor.hotspot_x = event->hotspot_x;
+		last_cursor.hotspot_y = event->hotspot_y;
+
+		if (!cursor_hidden)
+			wlr_cursor_set_surface(cursor, event->surface,
+					event->hotspot_x, event->hotspot_y);
+	}
 }
 
 void
@@ -2952,9 +3126,14 @@ setcursorshape(struct wl_listener *listener, void *data)
 	/* This can be sent by any client, so we check to make sure this one is
 	 * actually has pointer focus first. If so, we can tell the cursor to
 	 * use the provided cursor shape. */
-	if (event->seat_client == seat->pointer_state.focused_client)
-		wlr_cursor_set_xcursor(cursor, cursor_mgr,
-				wlr_cursor_shape_v1_name(event->shape));
+	if (event->seat_client == seat->pointer_state.focused_client) {
+		last_cursor.shape = event->shape;
+		last_cursor.surface = NULL;
+
+		if (!cursor_hidden)
+			wlr_cursor_set_xcursor(cursor, cursor_mgr,
+					wlr_cursor_shape_v1_name(event->shape));
+	}
 }
 
 void
@@ -3101,6 +3280,10 @@ setsel(struct wl_listener *listener, void *data)
 void
 setup(void)
 {
+	drules = calloc(LENGTH(rules) + RULES_MAX, sizeof(Rule));
+	druleslen = LENGTH(rules);
+	memcpy(drules, rules, sizeof(rules));
+
 	int i, sig[] = {SIGCHLD, SIGINT, SIGTERM, SIGPIPE};
 	struct sigaction sa = {.sa_flags = SA_RESTART, .sa_handler = handlesig};
 	sigemptyset(&sa.sa_mask);
@@ -3242,6 +3425,9 @@ setup(void)
 	LISTEN_STATIC(&pointer_constraints->events.new_constraint, createpointerconstraint);
 
 	relative_pointer_mgr = wlr_relative_pointer_manager_v1_create(dpy);
+
+	hide_source = wl_event_loop_add_timer(wl_display_get_event_loop(dpy),
+			hidecursor, cursor);
 
 	/*
 	 * Creates a cursor, which is a wlroots utility for tracking the cursor
@@ -3931,6 +4117,7 @@ virtualpointer(struct wl_listener *listener, void *data)
 	wlr_cursor_attach_input_device(cursor, device);
 	if (event->suggested_output)
 		wlr_cursor_map_input_to_output(cursor, device, event->suggested_output);
+	handlecursoractivity();
 }
 
 void
