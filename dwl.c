@@ -14,6 +14,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <wayland-server-core.h>
+#include <limits.h>
 #include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
 #include <wlr/render/allocator.h>
@@ -42,6 +43,7 @@
 #include <wlr/types/wlr_output_power_management_v1.h>
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_pointer_constraints_v1.h>
+#include <wlr/types/wlr_pointer_gestures_v1.h>
 #include <wlr/types/wlr_presentation_time.h>
 #include <wlr/types/wlr_primary_selection.h>
 #include <wlr/types/wlr_primary_selection_v1.h>
@@ -100,6 +102,7 @@ enum { ClkTagBar, ClkLtSymbol, ClkStatus, ClkTitle, ClkClient, ClkRoot, ClkTray 
 enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
 #endif
+enum { SWIPE_LEFT, SWIPE_RIGHT, SWIPE_DOWN, SWIPE_UP };
 
 typedef union {
 	int i;
@@ -115,6 +118,15 @@ typedef struct {
 	void (*func)(const Arg *);
 	const Arg arg;
 } Button;
+
+typedef struct {
+	unsigned int mod;
+	unsigned int motion;
+	unsigned int fingers_count;
+	void (*func)(const Arg *);
+	const Arg arg;
+} Gesture;
+
 
 typedef struct Pertag Pertag;
 typedef struct Monitor Monitor;
@@ -318,6 +330,15 @@ static void bufdataend(struct wlr_buffer *buffer);
 static Buffer *bufmon(Monitor *m);
 static void bufrelease(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
+static int ongesture(struct wlr_pointer_swipe_end_event *event);
+static void swipe_begin(struct wl_listener *listener, void *data);
+static void swipe_update(struct wl_listener *listener, void *data);
+static void swipe_end(struct wl_listener *listener, void *data);
+static void pinch_begin(struct wl_listener *listener, void *data);
+static void pinch_update(struct wl_listener *listener, void *data);
+static void pinch_end(struct wl_listener *listener, void *data);
+static void hold_begin(struct wl_listener *listener, void *data);
+static void hold_end(struct wl_listener *listener, void *data);
 static void chvt(const Arg *arg);
 static void checkidleinhibitor(struct wlr_surface *exclude);
 static void cleanup(void);
@@ -491,6 +512,7 @@ static struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
 static struct wlr_virtual_pointer_manager_v1 *virtual_pointer_mgr;
 static struct wlr_cursor_shape_manager_v1 *cursor_shape_mgr;
 static struct wlr_output_power_manager_v1 *power_mgr;
+static struct wlr_pointer_gestures_v1 *pointer_gestures;
 
 static struct wlr_pointer_constraints_v1 *pointer_constraints;
 static struct wlr_relative_pointer_manager_v1 *relative_pointer_mgr;
@@ -546,6 +568,11 @@ static const Menu *menu_current;
 static int menu_fd;
 static pid_t menu_pid;
 static struct wl_event_source *menu_source;
+
+static uint32_t swipe_fingers = 0;
+static double swipe_dx = 0;
+static double swipe_dy = 0;
+static unsigned int abzsquare;
 
 #ifdef XWAYLAND
 static void activatex11(struct wl_listener *listener, void *data);
@@ -635,7 +662,7 @@ applyrules(Client *c)
 		}
 	}
 	if (enableautoswallow && !c->noswallow && !c->isfloating &&
-			!c->surface.xdg->initial_commit) {
+			c->surface.xdg && !c->surface.xdg->initial_commit) {
 		Client *p = termforwin(c);
 		if (p)
 			swallow(c, p);
@@ -835,7 +862,13 @@ bufmon(Monitor *m)
 			break;
 		}
 
-		buf = ecalloc(1, sizeof(Buffer) + (m->b.width * 4 * m->b.height));
+		/* Check for integer overflow in buffer size calculation */
+		if (m->b.width > 0 && m->b.height > 0 && 
+		    m->b.width <= (SIZE_MAX - sizeof(Buffer)) / (4 * m->b.height)) {
+			buf = ecalloc(1, sizeof(Buffer) + (m->b.width * 4 * m->b.height));
+		} else {
+			return NULL;  /* Size too large, return NULL safely */
+		}
 		buf->image = drwl_image_create(NULL, m->b.width, m->b.height, buf->data);
 		wlr_buffer_init(&buf->base, &buffer_impl, m->b.width, m->b.height);
 		m->pool[i] = buf;
@@ -964,6 +997,186 @@ buttonpress(struct wl_listener *listener, void *data)
 skip_click:
 	wlr_seat_pointer_notify_button(seat,
 			event->time_msec, event->button, event->state);
+}
+
+void
+swipe_begin(struct wl_listener *listener, void *data)
+{
+	struct wlr_pointer_swipe_begin_event *event = data;
+
+	swipe_fingers = event->fingers;
+	// Reset swipe distance at the beginning of a swipe
+	swipe_dx = 0;
+	swipe_dy = 0;
+	
+	wlr_log(WLR_DEBUG, "Swipe begin: fingers=%d", event->fingers);
+
+	// Forward swipe begin event to client
+	wlr_pointer_gestures_v1_send_swipe_begin(
+		pointer_gestures, 
+		seat,
+		event->time_msec,
+		event->fingers
+	);
+}
+
+void
+swipe_update(struct wl_listener *listener, void *data)
+{
+	struct wlr_pointer_swipe_update_event *event = data;
+
+	swipe_fingers = event->fingers;
+	// Accumulate swipe distance
+	swipe_dx += event->dx;
+	swipe_dy += event->dy;
+
+	// Forward swipe update event to client
+	wlr_pointer_gestures_v1_send_swipe_update(
+		pointer_gestures, 
+		seat,
+		event->time_msec,
+		event->dx,
+		event->dy
+	);
+}
+
+int
+ongesture(struct wlr_pointer_swipe_end_event *event)
+{
+	struct wlr_keyboard *keyboard;
+	uint32_t mods;
+	const Gesture *g;
+	unsigned int motion;
+	unsigned int adx = (int)round(fabs(swipe_dx));
+	unsigned int ady = (int)round(fabs(swipe_dy));
+	int handled = 0;
+
+	if (event->cancelled) {
+		return handled;
+	}
+
+	// Require absolute distance movement beyond a small thresh-hold
+	if (adx * adx + ady * ady < abzsquare) {
+		wlr_log(WLR_DEBUG, "Gesture too small: %d,%d < %d", adx, ady, abzsquare);
+		return handled;
+	}
+
+	if (adx > ady) {
+		motion = swipe_dx < 0 ? SWIPE_LEFT : SWIPE_RIGHT;
+	} else {
+		motion = swipe_dy < 0 ? SWIPE_UP : SWIPE_DOWN;
+	}
+
+	keyboard = wlr_seat_get_keyboard(seat);
+	mods = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
+	wlr_log(WLR_DEBUG, "Gesture: fingers=%d, motion=%d, mods=0x%x, dx=%f, dy=%f", 
+		swipe_fingers, motion, mods, swipe_dx, swipe_dy);
+	
+	/* Check if gestures array is valid */
+	if (!gestures) {
+		return handled;
+	}
+	
+	for (g = gestures; g < END(gestures); g++) {
+		if (CLEANMASK(mods) == CLEANMASK(g->mod) &&
+			 swipe_fingers == g->fingers_count &&
+			 motion == g->motion && g->func) {
+			wlr_log(WLR_DEBUG, "Gesture matched! Executing function");
+			g->func(&g->arg);
+			handled = 1;
+		}
+	}
+	return handled;
+}
+
+void
+swipe_end(struct wl_listener *listener, void *data)
+{
+	struct wlr_pointer_swipe_end_event *event = data;
+
+	// TODO: should we stop here if the event has been handled?
+	ongesture(event);
+
+	// Forward swipe end event to client
+	wlr_pointer_gestures_v1_send_swipe_end(
+		pointer_gestures, 
+		seat,
+		event->time_msec,
+		event->cancelled
+	);
+}
+
+void
+pinch_begin(struct wl_listener *listener, void *data)
+{
+	struct wlr_pointer_pinch_begin_event *event = data;
+
+	// Forward pinch begin event to client
+	wlr_pointer_gestures_v1_send_pinch_begin(
+		pointer_gestures, 
+		seat,
+		event->time_msec,
+		event->fingers
+	);
+}
+
+void
+pinch_update(struct wl_listener *listener, void *data)
+{
+	struct wlr_pointer_pinch_update_event *event = data;
+
+	// Forward pinch update event to client
+	wlr_pointer_gestures_v1_send_pinch_update(
+		pointer_gestures,
+		seat,
+		event->time_msec,
+		event->dx,
+		event->dy,
+		event->scale,
+		event->rotation
+	);
+}
+
+void
+pinch_end(struct wl_listener *listener, void *data)
+{
+	struct wlr_pointer_pinch_end_event *event = data;
+
+	// Forward pinch end event to client
+	wlr_pointer_gestures_v1_send_pinch_end(
+		pointer_gestures,
+		seat,
+		event->time_msec,
+		event->cancelled
+	);
+}
+
+void
+hold_begin(struct wl_listener *listener, void *data)
+{
+	struct wlr_pointer_hold_begin_event *event = data;
+
+	// Forward hold begin event to client
+	wlr_pointer_gestures_v1_send_hold_begin(
+		pointer_gestures,
+		seat,
+		event->time_msec,
+		event->fingers
+	);
+}
+
+void
+hold_end(struct wl_listener *listener, void *data)
+{
+	struct wlr_pointer_hold_end_event *event = data;
+
+	// Forward hold end event to client
+	wlr_pointer_gestures_v1_send_hold_end(
+		pointer_gestures,
+		seat,
+		event->time_msec,
+		event->cancelled
+	);
 }
 
 void
@@ -2557,6 +2770,10 @@ menuruleaction(char *line)
 		&r.monitor,
 		&end);
 
+	/* Ensure null termination */
+	appid[255] = '\0';
+	title[255] = '\0';
+
 	/* Full line was not parsed, exit */
 	if (!end)
 		return;
@@ -3474,6 +3691,16 @@ setup(void)
 	virtual_pointer_mgr = wlr_virtual_pointer_manager_v1_create(dpy);
 	LISTEN_STATIC(&virtual_pointer_mgr->events.new_virtual_pointer, virtualpointer);
 
+	pointer_gestures = wlr_pointer_gestures_v1_create(dpy);
+	LISTEN_STATIC(&cursor->events.swipe_begin, swipe_begin);
+	LISTEN_STATIC(&cursor->events.swipe_update, swipe_update);
+	LISTEN_STATIC(&cursor->events.swipe_end, swipe_end);
+	LISTEN_STATIC(&cursor->events.pinch_begin, pinch_begin);
+	LISTEN_STATIC(&cursor->events.pinch_update, pinch_update);
+	LISTEN_STATIC(&cursor->events.pinch_end, pinch_end);
+	LISTEN_STATIC(&cursor->events.hold_begin, hold_begin);
+	LISTEN_STATIC(&cursor->events.hold_end, hold_end);
+
 	seat = wlr_seat_create(dpy, "seat0");
 	LISTEN_STATIC(&seat->events.request_set_cursor, setcursor);
 	LISTEN_STATIC(&seat->events.request_set_selection, setsel);
@@ -3489,6 +3716,9 @@ setup(void)
 	LISTEN_STATIC(&output_mgr->events.test, outputmgrtest);
 
 	drwl_init();
+
+	/* Initialize gesture threshold square */
+	abzsquare = swipe_min_threshold * swipe_min_threshold;
 
 	status_event_source = wl_event_loop_add_fd(wl_display_get_event_loop(dpy),
 		STDIN_FILENO, WL_EVENT_READABLE, statusin, NULL);
@@ -3562,11 +3792,13 @@ statusin(int fd, unsigned int mask, void *data)
 	if (n < 0 && errno != EWOULDBLOCK)
 		die("read:");
 
-	status[n] = '\0';
-	status[strcspn(status, "\n")] = '\0';
-
-	strncpy(stext, status, sizeof(stext));
-	drawbars();
+	if (n > 0) {
+		status[n] = '\0';
+		status[strcspn(status, "\n")] = '\0';
+		strncpy(stext, status, sizeof(stext) - 1);
+		stext[sizeof(stext) - 1] = '\0';
+		drawbars();
+	}
 
 	return 0;
 }
@@ -3619,6 +3851,8 @@ tag(const Arg *arg)
 	sel->tags = arg->ui & TAGMASK;
 	focusclient(focustop(selmon), 1);
 	arrange(selmon);
+  if (follow == 1)
+    view(arg);
 	drawbars();
 }
 

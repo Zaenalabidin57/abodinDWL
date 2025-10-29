@@ -17,6 +17,7 @@ static const int showsystray               = 1; /* 0 means no systray */
 static const int showbar                   = 1; /* 0 means no bar */
 static const int topbar                    = 0; /* 0 means bottom bar */
 static const int vertpad                   = 5; /* vertical padding of bar */
+static const int follow                     = 1;
 static const int sidepad                   = 10; /* horizontal padding of bar */
 static const int user_bh		   = 30; /* 0 means that dwl will calculate barheight, >= 1 means dwl will use user_bh as the bar height. */
 static const char *fonts[]                 = {"Monocraft Nerd Font:style:Light:size=11"};
@@ -37,6 +38,8 @@ static uint32_t colors[][3]                = {
 
 /* Max amount of dynamically added rules */
 #define RULES_MAX 10
+
+static const unsigned int swipe_min_threshold = 0;
 
 /* tagging - TAGCOUNT must be no greater than 31 */
 #define  TAGCOUNT (5)
@@ -212,6 +215,8 @@ static const char *termcmd[] = { "ghostty", NULL };
 static const char *skrinsut[] = {"sh", "-c", "/home/shigure/.config/labwc/skinshut.sh", NULL};
 static const char *dmenucmd[] = {"sh", "-c", "rofi -dmenu", NULL };
 
+#include "shiftview.c"
+
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
 	/* modifier                  key                 function        argument */
@@ -309,4 +314,17 @@ static const Button buttons[] = {
 	{ ClkTagBar,   MODKEY, BTN_RIGHT,  toggletag,      {0} },
 	{ ClkTray,     0,      BTN_LEFT,   trayactivate,   {0} },
 	{ ClkTray,     0,      BTN_RIGHT,  traymenu,       {0} },
+};
+
+static const Gesture gestures[] = {
+	//{ 0, SWIPE_LEFT, 4, shiftview, { .i = 1 } },
+	//{ 0, SWIPE_RIGHT, 4, shiftview, { .i = -1 } },
+	{ 0, SWIPE_UP, 4, shiftview, { .i = -1 } },
+	{ 0, SWIPE_DOWN, 4, shiftview, { .i = +1 } },
+	{ 0, SWIPE_LEFT, 4, movestack, { .i = -1 } },
+	{ 0, SWIPE_RIGHT, 4, movestack, { .i = +1 } },
+	{ 0, SWIPE_UP, 3, focusstack, {.i = -1} },
+	{ 0, SWIPE_DOWN, 3, focusstack, {.i = +1} },
+	{ 0, SWIPE_LEFT, 3, zoom, {0} },
+	{ 0, SWIPE_RIGHT, 3, zoom, {0} },
 };
