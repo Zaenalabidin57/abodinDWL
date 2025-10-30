@@ -1,0 +1,244 @@
+--- a/dwl.c
++++ b/dwl.c
+@@ -70,6 +70,7 @@
+ #ifdef XWAYLAND
+ #include <wlr/xwayland.h>
+ #include <xcb/xcb.h>
+ #include <xcb/xcb_icccm.h>
++#include <errno.h>
+ #endif
+ 
+ #include "util.h"
+@@ -165,6 +166,12 @@
+ static struct wlr_xwayland *xwayland;
+ static xcb_atom_t netatom[NetLast];
+ #endif
++
++/* XWayland health monitoring */
++static struct wl_event_source *xwayland_health_check_source;
++static int xwayland_restarts = 0;
++static const int MAX_XWAYLAND_RESTARTS = 3;
+ 
+ /* configuration, allows nested code to access above variables */
+ #include "config.h"
+@@ -577,6 +584,16 @@ static void sethints(struct wl_listener *listener, void *data);
+ static void xwaylandready(struct wl_listener *listener, void *data);
+ static struct wlr_xwayland *xwayland;
+ static xcb_atom_t netatom[NetLast];
++
++/* Enhanced XWayland functions */
++static void restart_xwayland_idle(void *data);
++static void setup_xwayland(void);
++static xcb_atom_t getatom_safe(xcb_connection_t *xc, const char *name);
++static int check_xwayland_health(void *data);
++static void handlesig_enhanced(int signo);
++static void xwaylandready_enhanced(struct wl_listener *listener, void *data);
++static void sethints_enhanced(struct wl_listener *listener, void *data);
+ #endif
+ 
+ /* configuration, allows nested code to access above variables */
+@@ -2218,6 +2235,7 @@ handlesig(int signo)
+ {
+ 	if (signo == SIGCHLD) {
+ 		siginfo_t in;
++		int xwayland_died = 0;
+ 		/* wlroots expects to reap the XWayland process itself, so we
+ 		 * use WNOWAIT to keep the child waitable until we know it's not
+ 		 * XWayland.
+@@ -2225,6 +2243,16 @@ handlesig(int signo)
+ 		while (!waitid(P_ALL, 0, &in, WEXITED|WNOHANG|WNOWAIT) && in.si_pid
+ #ifdef XWAYLAND
+ 			   && (!xwayland || in.si_pid != xwayland->server->pid)
++		) {
++			/* Check if this was XWayland server */
++			if (xwayland && in.si_pid == xwayland->server->pid) {
++				wlr_log(WLR_ERROR, "XWayland server (PID %d) died with status %d", 
++				         in.si_pid, in.si_status);
++				xwayland = NULL;
++				xwayland_died = 1;
++				continue;
++			}
+ #endif
+ 			   ) {
+ 			pid_t *p, *lim;
+ 			waitpid(in.si_pid, NULL, 0);
+@@ -2242,6 +2270,12 @@ handlesig(int signo)
+ 				}
+ 			}
+ 		}
++		
++		/* If XWayland died, schedule restart */
++		if (xwayland_died && xwayland_restarts < MAX_XWAYLAND_RESTARTS) {
++			wl_event_loop_add_idle(event_loop, restart_xwayland_idle, NULL);
++		}
+ 	} else if (signo == SIGINT || signo == SIGTERM) {
+ 		quit(NULL);
+ 	}
+@@ -3741,8 +3775,7 @@ setup(void)
+ #ifdef XWAYLAND
+ 	/*
+ 	 * Initialise XWayland X server.
+-	 * It will be started when the first X client is started.
++	 * It will be started when the first X client is started.
+ 	 */
+-	if ((xwayland = wlr_xwayland_create(dpy, compositor, 1))) {
++	setup_xwayland();
++	if (xwayland) {
+ 		LISTEN_STATIC(&xwayland->events.ready, xwaylandready);
+ 		LISTEN_STATIC(&xwayland->events.new_surface, createnotifyx11);
+ 
+@@ -4571,12 +4604,15 @@ getatom(xcb_connection_t *xc, const char *name)
+ {
+ 	xcb_atom_t atom = 0;
+ 	xcb_intern_atom_reply_t *reply;
+-	xcb_intern_atom_cookie_t cookie = xcb_intern_atom(xc, 0, strlen(name), name);
+-	if ((reply = xcb_intern_atom_reply(xc, cookie, NULL)))
++	xcb_generic_error_t *error = NULL;
++	xcb_intern_atom_cookie_t cookie = xcb_intern_atom(xc, 0, strlen(name), name);
++	
++	if (!(reply = xcb_intern_atom_reply(xc, cookie, &error))) {
++		if (error) {
++			wlr_log(WLR_ERROR, "XCB error getting atom %s: error_code=%d", 
++			         name, error->error_code);
++			free(error);
++		}
+ 		atom = reply->atom;
+-	free(reply);
++		free(reply);
++	}
+ 
+ 	return atom;
+ }
+@@ -4584,6 +4620,12 @@ sethints(struct wl_listener *listener, void *data)
+ 	Client *c = wl_container_of(listener, c, set_hints);
+ 	struct wlr_surface *surface = client_surface(c);
+ 	if (c == focustop(selmon))
+ 		return;
+ 
++	/* Validate XWayland surface is still valid */
++	if (!c->surface.xwayland || !surface) {
++		wlr_log(WLR_DEBUG, "sethints: invalid XWayland surface");
++		return;
++	}
++	
+ 	c->isurgent = xcb_icccm_wm_hints_get_urgency(c->surface.xwayland->hints);
+ 	drawbars();
+ 
+@@ -4599,6 +4641,12 @@ xwaylandready(struct wl_listener *listener, void *data)
+ {
+ 	struct wlr_xcursor *xcursor;
+ 	xcb_connection_t *xc = xcb_connect(xwayland->display_name, NULL);
++	int retry_count = 0;
++	const int max_retries = 3;
++	
++	/* Retry XCB connection with backoff */
++	while (retry_count < max_retries && xcb_connection_has_error(xc)) {
++		wlr_log(WLR_DEBUG, "XCB connection attempt %d failed, retrying...", retry_count + 1);
++		if (xc) xcb_disconnect(xc);
++		usleep((1 << retry_count) * 100000); // 100ms, 200ms, 400ms
++		xc = xcb_connect(xwayland->display_name, NULL);
++		retry_count++;
++	}
++	
+ 	int err = xcb_connection_has_error(xc);
+ 	if (err) {
+-		fprintf(stderr, "xcb_connect to X server failed with code %d\n. Continuing with degraded functionality.\n", err);
++		wlr_log(WLR_ERROR, "xcb_connect to X server failed with code %d after %d attempts", err, max_retries);
++		if (xc) xcb_disconnect(xc);
+ 		return;
+ 	}
+ 
+@@ -4625,6 +4673,7 @@ xwaylandready(struct wl_listener *listener, void *data)
+ 				xcursor->images[0]->hotspot_x, xcursor->images[0]->hotspot_y);
+ 
+ 	xcb_disconnect(xc);
++	wlr_log(WLR_INFO, "XWayland setup completed successfully");
+ }
+ #endif
+ 
+@@ -4632,3 +4681,84 @@ main(int argc, char *argv[])
+ usage:
+ 	die("Usage: %s [-v] [-d] [-s startup command]", argv[0]);
+ }
++
++#ifdef XWAYLAND
++/* Enhanced XWayland functions implementation */
++
++static void
++restart_xwayland_idle(void *data)
++{
++	if (!xwayland) {
++		xwayland_restarts++;
++		wlr_log(WLR_INFO, "Attempting XWayland restart %d/%d", 
++		         xwayland_restarts, MAX_XWAYLAND_RESTARTS);
++		setup_xwayland();
++		if (xwayland) {
++			LISTEN_STATIC(&xwayland->events.ready, xwaylandready);
++			LISTEN_STATIC(&xwayland->events.new_surface, createnotifyx11);
++			setenv("DISPLAY", xwayland->display_name, 1);
++		}
++	}
++}
++
++static void
++setup_xwayland(void)
++{
++	wlr_log(WLR_INFO, "Setting up XWayland (attempt %d)", xwayland_restarts + 1);
++	
++	/* Clean up any existing XWayland */
++	if (xwayland) {
++		wlr_xwayland_destroy(xwayland);
++		xwayland = NULL;
++	}
++	
++	/* Create new XWayland instance */
++	if (!(xwayland = wlr_xwayland_create(dpy, compositor, 1))) {
++		wlr_log(WLR_ERROR, "Failed to create XWayland server");
++		return;
++	}
++	
++	/* Start health monitoring */
++	if (!xwayland_health_check_source) {
++		xwayland_health_check_source = 
++			wl_event_loop_add_timer(event_loop, check_xwayland_health, NULL);
++	}
++	wl_event_source_timer_update(xwayland_health_check_source, 1000); // Start checking in 1s
++}
++
++static int
++check_xwayland_health(void *data)
++{
++	if (!xwayland || !xwayland->server) {
++		return 5000; // Check again in 5 seconds
++	}
++	
++	/* Check if XWayland server is still alive */
++	int status;
++	pid_t result = waitpid(xwayland->server->pid, &status, WNOHANG);
++	
++	if (result == -1) {
++		wlr_log(WLR_ERROR, "XWayland health check failed: %s", strerror(errno));
++		return 5000;
++	} else if (result == xwayland->server->pid) {
++		wlr_log(WLR_ERROR, "XWayland server died, triggering restart");
++		xwayland = NULL;
++		wl_event_loop_add_idle(event_loop, restart_xwayland_idle, NULL);
++		return 1000;
++	}
++	
++	/* Test XCB connection health periodically */
++	static int xcb_test_counter = 0;
++	if (++xcb_test_counter % 10 == 0 && xwayland->display_name) {
++		xcb_connection_t *test_xc = xcb_connect(xwayland->display_name, NULL);
++		if (xcb_connection_has_error(test_xc)) {
++			wlr_log(WLR_ERROR, "XWayland XCB connection test failed");
++			xcb_disconnect(test_xc);
++			return 1000;
++		}
++		xcb_disconnect(test_xc);
++	}
++	
++	return 5000; // Check every 5 seconds when healthy
++}
++
++#endif /* XWAYLAND */

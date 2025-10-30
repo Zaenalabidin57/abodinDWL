@@ -74,7 +74,7 @@ static const char *const autostart[] = {
         "sh", "-c" , "wayland-pipewire-idle-inhibit", NULL,
         "sh", "-c" , "/usr/lib/xdg-desktop-portal -r", NULL,
         "sh", "-c" , "/usr/lib/xdg-desktop-portal-wlr -r", NULL,
-       // "sh", "-c" , "xwayland-satellite", NULL,
+        //"sh", "-c" , "xwayland-satellite", NULL,
         NULL /* terminate */
 };
 
@@ -319,8 +319,8 @@ static const Button buttons[] = {
 static const Gesture gestures[] = {
 	//{ 0, SWIPE_LEFT, 4, shiftview, { .i = 1 } },
 	//{ 0, SWIPE_RIGHT, 4, shiftview, { .i = -1 } },
-	{ 0, SWIPE_UP, 4, shiftview, { .i = -1 } },
-	{ 0, SWIPE_DOWN, 4, shiftview, { .i = +1 } },
+	{ 0, SWIPE_DOWN, 4, shiftview, { .i = -1 } },
+	{ 0, SWIPE_UP, 4, shiftview, { .i = +1 } },
 	{ 0, SWIPE_LEFT, 4, movestack, { .i = -1 } },
 	{ 0, SWIPE_RIGHT, 4, movestack, { .i = +1 } },
 	{ 0, SWIPE_UP, 3, focusstack, {.i = -1} },
