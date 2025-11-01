@@ -21,7 +21,7 @@ static const int follow                     = 1;
 static const int sidepad                   = 10; /* horizontal padding of bar */
 static const int user_bh		   = 30; /* 0 means that dwl will calculate barheight, >= 1 means dwl will use user_bh as the bar height. */
 static const char *fonts[]                 = {"Monocraft Nerd Font:style:Light:size=11"};
-static const float rootcolor[]             = COLOR(0x0009090E);
+const float rootcolor[]             = COLOR(0x0009090E);
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
 static int enableautoswallow = 1; /* enables autoswallowing newly spawned clients */
@@ -46,7 +46,7 @@ static const unsigned int swipe_min_threshold = 0;
 static char *tags[] = { "1", "2", "3", "4", "5",};
 
 /* logging */
-static int log_level = WLR_ERROR;
+int log_level = WLR_ERROR;
 
 // setup env dsw
 
@@ -188,7 +188,7 @@ LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT
 LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE
 */
 static const enum libinput_config_accel_profile accel_profile = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE;
-static const double accel_speed = 0.5;
+static const double accel_speed = 0.3;
 
 /* You can choose between:
 LIBINPUT_CONFIG_TAP_MAP_LRM -- 1/2/3 finger tap maps to left/right/middle

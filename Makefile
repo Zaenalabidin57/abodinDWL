@@ -13,19 +13,22 @@ DWLDEVCFLAGS = -g -pedantic -Wall -Wextra -Wdeclaration-after-statement \
 
 # CFLAGS / LDFLAGS
 PKGS      = wlroots-0.18 wayland-server xkbcommon libinput pixman-1 fcft $(XLIBS) dbus-1
-DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS)
+DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS) -fPIC -rdynamic
 LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` -lm $(LIBS)
 
 TRAYOBJS = systray/watcher.o systray/tray.o systray/item.o systray/icon.o systray/menu.o systray/helpers.o
 TRAYDEPS = systray/watcher.h systray/tray.h systray/item.h systray/icon.h systray/menu.h systray/helpers.h
 
-all: dwl
+all: dwl dwl.so
 dwl: dwl.o util.o dbus.o $(TRAYOBJS) $(TRAYDEPS)
 	$(CC) dwl.o util.o dbus.o $(TRAYOBJS) $(DWLCFLAGS) $(LDFLAGS) $(LDLIBS) -o $@
 dwl.o: dwl.c client.h dbus.h config.h config.mk cursor-shape-v1-protocol.h \
 	pointer-constraints-unstable-v1-protocol.h wlr-layer-shell-unstable-v1-protocol.h \
 	wlr-output-power-management-unstable-v1-protocol.h xdg-shell-protocol.h wlr-foreign-toplevel-management-unstable-v1-protocol.h \
 	$(TRAYDEPS)
+dwl.so: dwl.c client.h dbus.h config.h config.mk cursor-shape-v1-protocol.h \
+	pointer-constraints-unstable-v1-protocol.h wlr-layer-shell-unstable-v1-protocol.h \
+	wlr-output-power-management-unstable-v1-protocol.h xdg-shell-protocol.h wlr-foreign-toplevel-management-unstable-v1-protocol.h
 util.o: util.c util.h
 dbus.o: dbus.c dbus.h
 systray/watcher.o: systray/watcher.c $(TRAYDEPS)
@@ -63,7 +66,7 @@ wlr-foreign-toplevel-management-unstable-v1-protocol.h:
 config.h:
 	cp config.def.h $@
 clean:
-	rm -f dwl *.o *-protocol.h systray/*.o config.h
+	rm -f dwl *.o *-protocol.h systray/*.o config.h *.so
 
 dist: clean
 	mkdir -p dwl-$(VERSION)
@@ -77,6 +80,8 @@ install: dwl
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
 	cp -f dwl $(DESTDIR)$(PREFIX)/bin
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/dwl
+	mkdir -p $(DESTDIR)$(PREFIX)/lib
+	install -m 744 dwl.so $(DESTDIR)$(PREFIX)/lib
 	mkdir -p $(DESTDIR)$(MANDIR)/man1
 	cp -f dwl.1 $(DESTDIR)$(MANDIR)/man1
 	chmod 644 $(DESTDIR)$(MANDIR)/man1/dwl.1
@@ -84,9 +89,17 @@ install: dwl
 	cp -f dwl.desktop $(DESTDIR)$(DATADIR)/wayland-sessions/dwl.desktop
 	chmod 644 $(DESTDIR)$(DATADIR)/wayland-sessions/dwl.desktop
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/dwl $(DESTDIR)$(MANDIR)/man1/dwl.1 \
+	rm -f $(DESTDIR)$(PREFIX)/bin/dwl $(DESTDIR)$(PREFIX)/lib/dwl.so $(DESTDIR)$(MANDIR)/man1/dwl.1 \
 		$(DESTDIR)$(DATADIR)/wayland-sessions/dwl.desktop
 
 .SUFFIXES: .c .o
 .c.o:
 	$(CC) $(CPPFLAGS) $(DWLCFLAGS) -o $@ -c $<
+
+.SUFFIXES: .c .so
+.c.so:
+	$(CC) $(CPPFLAGS) $(DWLCFLAGS) -o $@ -shared -DHOT  $<
+
+.SUFFIXES: .c .so
+.c.so:
+	$(CC) $(CPPFLAGS) $(DWLCFLAGS) -o $@ -shared -DHOT  $<

@@ -340,7 +340,7 @@ client_send_close(Client *c)
 }
 
 static inline void
-client_set_border_color(Client *c, const float color[static 4])
+client_set_border_color(Client *c, const float color[4])
 {
 	int i;
 	for (i = 0; i < 4; i++)
