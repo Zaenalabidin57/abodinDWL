@@ -75,6 +75,7 @@ static const char *const autostart[] = {
         "sh", "-c" , "/usr/lib/xdg-desktop-portal -r", NULL,
         "sh", "-c" , "/usr/lib/xdg-desktop-portal-wlr -r", NULL,
         //"sh", "-c" , "xwayland-satellite", NULL,
+        "sh", "-c" , "activate-linux -d", NULL,
         NULL /* terminate */
 };
 
@@ -187,7 +188,7 @@ LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT
 LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE
 */
 static const enum libinput_config_accel_profile accel_profile = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE;
-static const double accel_speed = 0.0;
+static const double accel_speed = 0.5;
 
 /* You can choose between:
 LIBINPUT_CONFIG_TAP_MAP_LRM -- 1/2/3 finger tap maps to left/right/middle

@@ -32,10 +32,11 @@ typedef struct {
 } Menu;
 
 typedef struct {
-	char label[LABEL_MAX];
-	dbus_int32_t id;
-	struct wl_array submenu;
-	int has_submenu;
+    char label[LABEL_MAX];
+    dbus_int32_t id;
+    struct wl_array submenu;
+    int has_submenu;
+    int enabled;
 } MenuItem;
 
 typedef struct {
@@ -54,10 +55,11 @@ static void submenus_destroy_recursive (struct wl_array *m);
 static void
 menuitem_init(MenuItem *mi)
 {
-	wl_array_init(&mi->submenu);
-	mi->id = -1;
-	*mi->label = '\0';
-	mi->has_submenu = 0;
+    wl_array_init(&mi->submenu);
+    mi->id = -1;
+    *mi->label = '\0';
+    mi->has_submenu = 0;
+    mi->enabled = 1;
 }
 
 static void
@@ -160,22 +162,24 @@ fail:
 static void
 menuitem_selected(const char *label, struct wl_array *m, Menu *menu)
 {
-	MenuItem *mi;
+    MenuItem *mi;
 
-	wl_array_for_each(mi, m) {
-		if (strcmp(mi->label, label) == 0) {
-			if (mi->has_submenu) {
-				real_show_menu(menu, &mi->submenu);
+    wl_array_for_each(mi, m) {
+        if (strcmp(mi->label, label) == 0) {
+            if (mi->has_submenu) {
+                real_show_menu(menu, &mi->submenu);
 
-			} else {
-				send_clicked(menu->busname, menu->busobj,
-				             mi->id, menu->conn);
-				menu_destroy(menu);
-			}
+            } else {
+                if (mi->enabled && mi->id >= 0) {
+                    send_clicked(menu->busname, menu->busobj,
+                                 mi->id, menu->conn);
+                }
+                menu_destroy(menu);
+            }
 
-			return;
-		}
-	}
+            return;
+        }
+    }
 }
 
 static int
@@ -357,12 +361,12 @@ static int
 read_dict(DBusMessageIter *dict, dbus_int32_t itemid, MenuItem *mi,
           int *has_submenu)
 {
-	DBusMessageIter member, val;
-	const char *children_display = NULL, *label = NULL, *toggle_type = NULL;
-	const char *key;
-	dbus_bool_t visible = TRUE, enabled = TRUE;
-	dbus_int32_t toggle_state = 1;
-	int r;
+    DBusMessageIter member, val;
+    const char *children_display = NULL, *label = NULL, *toggle_type = NULL;
+    const char *key;
+    dbus_bool_t visible = TRUE, enabled = TRUE;
+    dbus_int32_t toggle_state = 1;
+    int r;
 
 	do {
 		dbus_message_iter_recurse(dict, &member);
@@ -432,11 +436,11 @@ read_dict(DBusMessageIter *dict, dbus_int32_t itemid, MenuItem *mi,
 			}
 			dbus_message_iter_get_basic(&val, &label);
 		}
-	} while (dbus_message_iter_next(dict));
+    } while (dbus_message_iter_next(dict));
 
-	/* Skip hidden etc items */
-	if (!label || !visible || !enabled)
-		return 1;
+    /* Skip hidden items; include disabled/label-only */
+    if (!label || !visible)
+        return 1;
 
 	/*
 	 * 4 characters for checkmark and submenu indicator,
@@ -448,12 +452,15 @@ read_dict(DBusMessageIter *dict, dbus_int32_t itemid, MenuItem *mi,
 		return 1;
 	}
 
-	if (toggle_type && strcmp(toggle_type, "checkmark") == 0)
-		createmenuitem(mi, itemid, label, toggle_state, *has_submenu);
-	else
-		createmenuitem(mi, itemid, label, -1, *has_submenu);
+    if (toggle_type && strcmp(toggle_type, "checkmark") == 0)
+        createmenuitem(mi, itemid, label, toggle_state, *has_submenu);
+    else
+        createmenuitem(mi, itemid, label, -1, *has_submenu);
 
-	return 0;
+    /* Record enabled state to prevent activation of non-clickable items */
+    mi->enabled = enabled ? 1 : 0;
+
+    return 0;
 
 fail:
 	fprintf(stderr, "Error parsing menu data\n");
