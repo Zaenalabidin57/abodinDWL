@@ -119,14 +119,16 @@ static void
 send_clicked(const char *busname, const char *busobj, int itemid,
              DBusConnection *conn)
 {
-	DBusMessage *msg = NULL;
-	DBusMessageIter iter = DBUS_MESSAGE_ITER_INIT_CLOSED;
-	DBusMessageIter sub = DBUS_MESSAGE_ITER_INIT_CLOSED;
-	const char *data = "";
-	const char *eventid = "clicked";
-	time_t timestamp;
+    DBusMessage *msg = NULL;
+    DBusMessageIter iter = DBUS_MESSAGE_ITER_INIT_CLOSED;
+    DBusMessageIter sub = DBUS_MESSAGE_ITER_INIT_CLOSED;
+    const char *data = "";
+    const char *eventid = "clicked";
+    time_t timestamp;
+    dbus_uint32_t ts32;
 
-	timestamp = time(NULL);
+    timestamp = time(NULL);
+    ts32 = (dbus_uint32_t)timestamp;
 
 	msg = dbus_message_new_method_call(busname, busobj, DBUSMENU_IFACE,
 	                                   "Event");
@@ -134,18 +136,18 @@ send_clicked(const char *busname, const char *busobj, int itemid,
 		goto fail;
 
 	dbus_message_iter_init_append(msg, &iter);
-	if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_INT32, &itemid) ||
-	    !dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING,
-	                                    &eventid) ||
-	    !dbus_message_iter_open_container(&iter, DBUS_TYPE_VARIANT,
-	                                      DBUS_TYPE_STRING_AS_STRING,
-	                                      &sub) ||
-	    !dbus_message_iter_append_basic(&sub, DBUS_TYPE_STRING, &data) ||
-	    !dbus_message_iter_close_container(&iter, &sub) ||
-	    !dbus_message_iter_append_basic(&iter, DBUS_TYPE_UINT32,
-	                                    &timestamp)) {
-		goto fail;
-	}
+    if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_INT32, &itemid) ||
+        !dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING,
+                                        &eventid) ||
+        !dbus_message_iter_open_container(&iter, DBUS_TYPE_VARIANT,
+                                          DBUS_TYPE_STRING_AS_STRING,
+                                          &sub) ||
+        !dbus_message_iter_append_basic(&sub, DBUS_TYPE_STRING, &data) ||
+        !dbus_message_iter_close_container(&iter, &sub) ||
+        !dbus_message_iter_append_basic(&iter, DBUS_TYPE_UINT32,
+                                        &ts32)) {
+        goto fail;
+    }
 
 	if (!dbus_connection_send_with_reply(conn, msg, NULL, -1))
 		goto fail;
@@ -185,18 +187,19 @@ menuitem_selected(const char *label, struct wl_array *m, Menu *menu)
 static int
 read_pipe(int fd, uint32_t mask, void *data)
 {
-	MenuShowContext *ctx = data;
+    MenuShowContext *ctx = data;
 
-	char buf[BUFSIZE];
-	ssize_t bytes_read;
+    char buf[BUFSIZE];
+    ssize_t bytes_read;
 
-	bytes_read = read(fd, buf, BUFSIZE);
-	/* 0 == Got EOF, menu program closed without writing to stdout */
-	if (bytes_read <= 0)
-		goto fail;
+    /* Ensure room for NUL terminator */
+    bytes_read = read(fd, buf, BUFSIZE - 1);
+    /* 0 == Got EOF, menu program closed without writing to stdout */
+    if (bytes_read <= 0)
+        goto fail;
 
-	buf[bytes_read] = '\0';
-	remove_newline(buf);
+    buf[bytes_read] = '\0';
+    remove_newline(buf);
 
 	menuitem_selected(buf, ctx->layout_node, ctx->menu);
 	menu_show_ctx_finalize(ctx, 0);
@@ -439,8 +442,9 @@ read_dict(DBusMessageIter *dict, dbus_int32_t itemid, MenuItem *mi,
     } while (dbus_message_iter_next(dict));
 
     /* Skip hidden items; include disabled/label-only */
-    if (!label || !visible)
+    if (!label || !visible) {
         return 1;
+    }
 
 	/*
 	 * 4 characters for checkmark and submenu indicator,

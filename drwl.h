@@ -81,8 +81,7 @@ utf8decode(uint32_t *state, uint32_t *codep, uint8_t byte)
 static int
 drwl_init(void)
 {
-	fcft_set_scaling_filter(FCFT_SCALING_FILTER_LANCZOS3);
-	return fcft_init(FCFT_LOG_COLORIZE_AUTO, 0, FCFT_LOG_CLASS_ERROR);
+    return fcft_init(FCFT_LOG_COLORIZE_AUTO, 0, FCFT_LOG_CLASS_ERROR);
 }
 
 static Drwl *

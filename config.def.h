@@ -95,6 +95,7 @@ static const Rule rules[] = {
   { "foot",            NULL,       0,                       0,         1,        1,           -1 },
   { "prostat",            NULL,       0,                       1,         1,        1,           -1 },
   { "ghostty",            NULL,       0,                       0,         1,        1,           -1 },
+  { "St",            NULL,       0,                       0,         1,        1,           -1 },
   { "Thunar",            NULL,       0,                       0,         1,        1,           -1 },
   { "Gimp",            NULL,       0,                       1,         0,        0,           -1 },
   { "Firefox",         NULL,       1 << 8,                  0,         0,        0,           -1 },
@@ -188,7 +189,7 @@ LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT
 LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE
 */
 static const enum libinput_config_accel_profile accel_profile = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE;
-static const double accel_speed = 0.5;
+static const double accel_speed = 0.1;
 
 /* You can choose between:
 LIBINPUT_CONFIG_TAP_MAP_LRM -- 1/2/3 finger tap maps to left/right/middle
@@ -212,8 +213,8 @@ static const int cursor_timeout = 5;
 
 /* commands */
 //static const char *termcmd[] = { "ghostty", NULL };
-static const char *termcmd[] = { "ghostty", NULL };
-static const char *skrinsut[] = {"sh", "-c", "/home/shigure/.config/labwc/skinshut.sh", NULL};
+static const char *termcmd[] = { "st", NULL };
+//static const char *skrinsut[] = {"sh", "-c", "/home/shigure/.config/labwc/skinshut.sh", NULL};
 static const char *dmenucmd[] = {"sh", "-c", "rofi -dmenu", NULL };
 
 #include "shiftview.c"
@@ -245,10 +246,10 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_J,          movestack,     {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
   { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("qutebrowser")},
-  { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("ghostty -e yazi")},
+  { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("st -e yazi")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_N,  spawn,            SHCMD("thunar")},
   { 0,                          XKB_KEY_Print,  spawn,            SHCMD("skinsut")},
-  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("ghostty -e /home/shigure/exit.sh")},
+  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("st -e /home/shigure/exit.sh")},
   { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
   { MODKEY,                           XKB_KEY_w,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  menu,            {.v = &menus[2]}},

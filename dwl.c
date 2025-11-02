@@ -177,8 +177,8 @@ struct Client {
 	struct wl_list link_temp;
 	pid_t pid;
 	Client *swallowing;  /* client being hidden */
-	Client *swallowedby;
-} Client;
+    Client *swallowedby;
+};
 
 typedef struct {
 	uint32_t mod;
@@ -851,8 +851,8 @@ bufdataend(struct wlr_buffer *wlr_buffer)
 Buffer *
 bufmon(Monitor *m)
 {
-	size_t i;
-	Buffer *buf = NULL;
+    size_t i;
+    Buffer *buf = NULL;
 
 	for (i = 0; i < LENGTH(m->pool); i++) {
 		if (m->pool[i]) {
@@ -862,13 +862,17 @@ bufmon(Monitor *m)
 			break;
 		}
 
-		/* Check for integer overflow in buffer size calculation */
-		if (m->b.width > 0 && m->b.height > 0 && 
-		    m->b.width <= (SIZE_MAX - sizeof(Buffer)) / (4 * m->b.height)) {
-			buf = ecalloc(1, sizeof(Buffer) + (m->b.width * 4 * m->b.height));
-		} else {
-			return NULL;  /* Size too large, return NULL safely */
-		}
+            /* Check for integer overflow in buffer size calculation */
+            {
+                size_t width = (size_t)m->b.width;
+                size_t height = (size_t)m->b.height;
+                if (width > 0 && height > 0 &&
+                    width <= (SIZE_MAX - sizeof(Buffer)) / (4 * height)) {
+                    buf = ecalloc(1, sizeof(Buffer) + (width * 4 * height));
+                } else {
+                    return NULL; /* Size too large, return NULL safely */
+                }
+            }
 		buf->image = drwl_image_create(NULL, m->b.width, m->b.height, buf->data);
 		wlr_buffer_init(&buf->base, &buffer_impl, m->b.width, m->b.height);
 		m->pool[i] = buf;
@@ -1043,13 +1047,13 @@ swipe_update(struct wl_listener *listener, void *data)
 int
 ongesture(struct wlr_pointer_swipe_end_event *event)
 {
-	struct wlr_keyboard *keyboard;
-	uint32_t mods;
-	const Gesture *g;
-	unsigned int motion;
-	unsigned int adx = (int)round(fabs(swipe_dx));
-	unsigned int ady = (int)round(fabs(swipe_dy));
-	int handled = 0;
+    struct wlr_keyboard *keyboard;
+    uint32_t mods;
+    const Gesture *g;
+    unsigned int motion;
+    unsigned int adx = (int)round(fabs(swipe_dx));
+    unsigned int ady = (int)round(fabs(swipe_dy));
+    int handled = 0;
 
 	if (event->cancelled) {
 		return handled;
@@ -1072,10 +1076,7 @@ ongesture(struct wlr_pointer_swipe_end_event *event)
 	wlr_log(WLR_DEBUG, "Gesture: fingers=%d, motion=%d, mods=0x%x, dx=%f, dy=%f", 
 		swipe_fingers, motion, mods, swipe_dx, swipe_dy);
 	
-	/* Check if gestures array is valid */
-	if (!gestures) {
-		return handled;
-	}
+    /* gestures is a compile-time array; no NULL check needed */
 	
 	for (g = gestures; g < END(gestures); g++) {
 		if (CLEANMASK(mods) == CLEANMASK(g->mod) &&
@@ -1742,11 +1743,12 @@ cursorframe(struct wl_listener *listener, void *data)
 void
 cursorwarptohint(void)
 {
-	Client *c = NULL;
-	if (!active_constraint)
-		return;
-	double sx = active_constraint->current.cursor_hint.x;
-	double sy = active_constraint->current.cursor_hint.y;
+    Client *c;
+    double sx, sy;
+    if (!active_constraint)
+        return;
+    sx = active_constraint->current.cursor_hint.x;
+    sy = active_constraint->current.cursor_hint.y;
 
 	toplevel_from_wlr_surface(active_constraint->surface, &c, NULL);
 	if (c && active_constraint->current.cursor_hint.enabled) {
@@ -1933,10 +1935,11 @@ dirtomon(enum wlr_direction dir)
 Client *
 firstfocused(void)
 {
-	if (wl_list_empty(&fstack))
-		return NULL;
-	Client *c = wl_container_of(fstack.next, c, flink);
-	return c;
+    Client *c;
+    if (wl_list_empty(&fstack))
+        return NULL;
+    c = wl_container_of(fstack.next, c, flink);
+    return c;
 }
 
 void
@@ -2787,8 +2790,9 @@ menuruleaction(char *line)
 				&& (((!r.id && !f->id) || (r.id && f->id && !strcmp(r.id, f->id)))))
 			goto found;
 
-	if (druleslen >= LENGTH(rules) + RULES_MAX)
-		return; /* No free slots left */
+    if ((size_t)druleslen >= LENGTH(rules) + RULES_MAX) {
+        return; /* No free slots left */
+    }
 
 	f = drules + druleslen++;
 	f->id    = r.id    ? strdup(r.id)    : NULL;
@@ -3497,13 +3501,13 @@ setsel(struct wl_listener *listener, void *data)
 void
 setup(void)
 {
-	drules = calloc(LENGTH(rules) + RULES_MAX, sizeof(Rule));
-	druleslen = LENGTH(rules);
-	memcpy(drules, rules, sizeof(rules));
-
-	int i, sig[] = {SIGCHLD, SIGINT, SIGTERM, SIGPIPE};
-	struct sigaction sa = {.sa_flags = SA_RESTART, .sa_handler = handlesig};
-	sigemptyset(&sa.sa_mask);
+    int i;
+    int sig[] = {SIGCHLD, SIGINT, SIGTERM, SIGPIPE};
+    struct sigaction sa = {.sa_flags = SA_RESTART, .sa_handler = handlesig};
+    drules = calloc(LENGTH(rules) + RULES_MAX, sizeof(Rule));
+    druleslen = LENGTH(rules);
+    memcpy(drules, rules, sizeof(rules));
+    sigemptyset(&sa.sa_mask);
 
 	for (i = 0; i < (int)LENGTH(sig); i++)
 		sigaction(sig[i], &sa, NULL);
