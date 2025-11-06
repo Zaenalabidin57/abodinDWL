@@ -88,6 +88,24 @@ end:
 	return type;
 }
 
+/*
+ * wlroots 0.19 removed some helper symbols we used before.
+ * Provide minimal local replacements for the bits we need.
+ */
+#include <wlr/types/wlr_xdg_shell.h>
+#ifdef XWAYLAND
+#include <wlr/xwayland.h>
+#endif
+
+/* Replacement for removed wlr_xdg_surface_get_geometry() helper */
+static inline void
+wlr_xdg_surface_get_geometry(struct wlr_xdg_surface *surface, struct wlr_box *box)
+{
+    if (!surface || !box) return;
+    /* Use the xdg-surface current geometry from the header-defined struct */
+    *box = surface->current.geometry;
+}
+
 /* The others */
 static inline void
 client_activate_surface(struct wlr_surface *s, int activated)
@@ -405,11 +423,13 @@ static inline int
 client_wants_focus(Client *c)
 {
 #ifdef XWAYLAND
-	return client_is_unmanaged(c)
-		&& wlr_xwayland_or_surface_wants_focus(c->surface.xwayland)
-		&& wlr_xwayland_icccm_input_model(c->surface.xwayland) != WLR_ICCCM_INPUT_MODEL_NONE;
+    /* With wlroots 0.19, use new Xwayland helpers */
+    if (!client_is_unmanaged(c))
+        return 0;
+    return wlr_xwayland_surface_override_redirect_wants_focus(c->surface.xwayland)
+        && wlr_xwayland_surface_icccm_input_model(c->surface.xwayland) != WLR_ICCCM_INPUT_MODEL_NONE;
 #endif
-	return 0;
+    return 0;
 }
 
 static inline int
