@@ -450,6 +450,7 @@ static void togglefloating(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
 static void toggleswallow(const Arg *arg);
 static void toggleautoswallow(const Arg *arg);
+static void togglewarpcursor(const Arg *arg);
 static void togglegaps(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
@@ -466,7 +467,7 @@ static void urgent(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static void virtualkeyboard(struct wl_listener *listener, void *data);
 static void virtualpointer(struct wl_listener *listener, void *data);
-static void warpcursor(const Client *c);
+static void warpcursor_to_client(const Client *c);
 static Monitor *xytomon(double x, double y);
 static void xytonode(double x, double y, struct wlr_surface **psurface,
 		Client **pc, LayerSurface **pl, double *nx, double *ny);
@@ -708,7 +709,7 @@ arrange(Monitor *m)
 		m->lt[m->sellt]->arrange(m);
 	motionnotify(0, NULL, 0, 0, 0, 0);
 	checkidleinhibitor(NULL);
-	warpcursor(focustop(selmon));
+	warpcursor_to_client(focustop(selmon));
 }
 
 void
@@ -2061,7 +2062,7 @@ focusclient(Client *c, int lift)
 
 	/* Warp cursor to center of client if it is outside */
 	if (lift)
-		warpcursor(c);
+		warpcursor_to_client(c);
 
 	/* Raise client in stacking order if requested */
 	if (c && lift)
@@ -4002,6 +4003,12 @@ toggleautoswallow(const Arg *arg)
 }
 
 void
+togglewarpcursor(const Arg *arg)
+{
+	warpcursor = !warpcursor;
+}
+
+void
 toggletag(const Arg *arg)
 {
 	uint32_t newtags;
@@ -4359,7 +4366,12 @@ virtualpointer(struct wl_listener *listener, void *data)
 }
 
 void
-warpcursor(const Client *c) {
+warpcursor_to_client(const Client *c)
+{
+	/* Check if warpcursor is disabled in config */
+	if (!warpcursor) {
+		return;
+	}
 	if (cursor_mode != CurNormal) {
 		return;
 	}
@@ -4378,6 +4390,7 @@ warpcursor(const Client *c) {
 			  c->geom.x + c->geom.width / 2.0,
 			  c->geom.y + c->geom.height / 2.0);
 }
+
 
 Monitor *
 xytomon(double x, double y)

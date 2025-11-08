@@ -6,8 +6,9 @@
                         ((hex >> 8) & 0xFF) / 255.0f, \
                         (hex & 0xFF) / 255.0f }
 /* appearance */
-static const int sloppyfocus               = 1;  /* focus follows mouse */
+static const int sloppyfocus               = 0;  /* focus follows mouse */
 static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will disable idle tracking even if it's surface isn't visible  */
+static int warpcursor                 = 1;  /* warp cursor to focused window */
 static const unsigned int borderpx         = 3;  /* border pixel of windows */
 static const unsigned int systrayspacing   = 5; /* systray spacing */
 static const int smartgaps                 = 0;  /* 1 means no outer gap when there is only one window */
@@ -26,11 +27,23 @@ static const float rootcolor[]             = COLOR(0x0009090E);
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
 static int enableautoswallow = 1; /* enables autoswallowing newly spawned clients */
 static float swallowborder = 1.0f; /* add this multiplied by borderpx to border when a client is swallowed */
+
+// biru album putih
+//static uint32_t colors[][3]                = {
+//	/*               fg          bg          border    */
+//	/*[SchemeNorm] = { 0x6e738d96, 0xcad3f5ff, 0x444444ff },*/
+//	[SchemeNorm] = { 0xf8f8f2ff, 0x1e1d2dff, 0x0c161fff },
+//	[SchemeSel]  = { 0xf8f8f2ff, 0x202f61ff, 0x2b15d4ff },
+//	//[SchemeSel]  = { 0x282737ff, 0x202f61ff, 0x005577ff },
+//	[SchemeUrg]  = { 0,          0,          0x770000ff },
+//};
+
+//dorakula
 static uint32_t colors[][3]                = {
 	/*               fg          bg          border    */
 	/*[SchemeNorm] = { 0x6e738d96, 0xcad3f5ff, 0x444444ff },*/
-	[SchemeNorm] = { 0xf8f8f2ff, 0x1e1d2dff, 0x0c161fff },
-	[SchemeSel]  = { 0xf8f8f2ff, 0x202f61ff, 0x2b15d4ff },
+	[SchemeNorm] = { 0xDD7EA9ff, 0x1e1d2dff, 0x0c161fff },
+	[SchemeSel]  = { 0xDD7EA9ff, 0x560e1aff, 0xce0a14ff },
 	//[SchemeSel]  = { 0x282737ff, 0x202f61ff, 0x005577ff },
 	[SchemeUrg]  = { 0,          0,          0x770000ff },
 };
@@ -60,7 +73,8 @@ static const Env envs[] = {
 
 /* Autostart */
 static const char *const autostart[] = {
-        "sh", "-c" , "swaybg -i ~/Pictures/wollpeper/ogata_rina.jpg -m fill", NULL,
+        //"sh", "-c" , "swaybg -i ~/Pictures/wollpeper/ogata_rina.jpg -m fill", NULL,
+        "sh", "-c" , "swaybg -i ~/Pictures/wollpeper/dorakula.jpg -m fill", NULL,
         "sh", "-c", "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
         "sh", "-c", "gnome-keyring-daemon --start --components=gpg,pkcs11,secrets,ssh", NULL,
         //"sh", "-c", "/usr/bin/lxpolkit", NULL,
@@ -275,6 +289,7 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_F,         togglefullscreen, {0} },
 	{ MODKEY,                    XKB_KEY_a,          toggleswallow,  {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_A,          toggleautoswallow, {0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_R,          togglewarpcursor, {0} },
 	{ MODKEY,                    XKB_KEY_0,          view,           {.ui = ~0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_parenright, tag,            {.ui = ~0} },
 	{ MODKEY,                    XKB_KEY_comma,      focusmon,       {.i = WLR_DIRECTION_LEFT} },
