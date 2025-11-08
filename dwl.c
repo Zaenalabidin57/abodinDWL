@@ -1849,6 +1849,11 @@ destroynotify(struct wl_listener *listener, void *data)
     wl_list_remove(&c->destroy.link);
     wl_list_remove(&c->set_title.link);
     wl_list_remove(&c->fullscreen.link);
+    /* Ensure request_maximize listener is removed for xdg toplevels */
+#ifdef XWAYLAND
+    if (c->type == XDGShell)
+#endif
+        wl_list_remove(&c->maximize.link);
 	/* Check if destroyed client was part of scratchpad_clients
 	 * and clean it from the list if so. */
 	if (c && wl_list_length(&scratchpad_clients) > 0) {
