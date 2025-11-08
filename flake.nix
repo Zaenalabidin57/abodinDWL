@@ -29,10 +29,9 @@
           pkgs.wayland
           pkgs.wayland-protocols
 
-          # --- wlroots: Specific version required by the build ---
-          # Your dwl build requires version 0.18, so we specify it directly.
-          # The 'wlroots' package in nixpkgs-unstable is likely newer.
-          pkgs.wlroots_0_18
+          # --- wlroots: Match the build to 0.19 ---
+          # Upgrade devShell to wlroots 0.19 to match Makefile.
+          pkgs.wlroots_0_19
 
           # --- XCB Libraries ---
           # These provide the missing xcb-*.pc files.

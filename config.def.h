@@ -56,6 +56,7 @@ static const Env envs[] = {
   {"SDL_VIDEODRIVER", "wayland"},
   {"XDG_SESSION_DESKTOP", "wlroots"},
   {"_JAVA_AWT_WM_NONREPARENTING", "1"},
+  {"DISPLAY", ":0"},
 };
 
 /* Autostart */
@@ -74,7 +75,7 @@ static const char *const autostart[] = {
         "sh", "-c" , "wayland-pipewire-idle-inhibit", NULL,
         "sh", "-c" , "/usr/lib/xdg-desktop-portal -r", NULL,
         "sh", "-c" , "/usr/lib/xdg-desktop-portal-wlr -r", NULL,
-        //"sh", "-c" , "xwayland-satellite", NULL,
+        "sh", "-c" , "xwayland-satellite", NULL,
         "sh", "-c" , "activate-linux -d", NULL,
         NULL /* terminate */
 };

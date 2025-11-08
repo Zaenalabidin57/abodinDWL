@@ -1844,11 +1844,16 @@ destroylocksurface(struct wl_listener *listener, void *data)
 void
 destroynotify(struct wl_listener *listener, void *data)
 {
-	/* Called when the xdg_toplevel is destroyed. */
-	Client *sc, *c = wl_container_of(listener, c, destroy);
-	wl_list_remove(&c->destroy.link);
-	wl_list_remove(&c->set_title.link);
-	wl_list_remove(&c->fullscreen.link);
+    /* Called when the xdg_toplevel is destroyed. */
+    Client *sc, *c = wl_container_of(listener, c, destroy);
+    wl_list_remove(&c->destroy.link);
+    wl_list_remove(&c->set_title.link);
+    wl_list_remove(&c->fullscreen.link);
+    /* Ensure request_maximize listener is removed for xdg toplevels */
+#ifdef XWAYLAND
+    if (c->type == XDGShell)
+#endif
+        wl_list_remove(&c->maximize.link);
 	/* Check if destroyed client was part of scratchpad_clients
 	 * and clean it from the list if so. */
 	if (c && wl_list_length(&scratchpad_clients) > 0) {
@@ -1860,20 +1865,28 @@ destroynotify(struct wl_listener *listener, void *data)
 		}
 	}
 #ifdef XWAYLAND
-	if (c->type != XDGShell) {
-		wl_list_remove(&c->activate.link);
-		wl_list_remove(&c->associate.link);
-		wl_list_remove(&c->configure.link);
-		wl_list_remove(&c->dissociate.link);
-		wl_list_remove(&c->set_hints.link);
-	} else
+    if (c->type != XDGShell) {
+        wl_list_remove(&c->activate.link);
+        wl_list_remove(&c->associate.link);
+        wl_list_remove(&c->configure.link);
+        wl_list_remove(&c->dissociate.link);
+        wl_list_remove(&c->set_hints.link);
+        /* For XWayland clients, map/unmap listeners are added on associate.
+         * Ensure they are removed here as some apps emit unmap after destroy,
+         * which would otherwise dereference a freed Client. Guard for
+         * listeners that may not have been added yet. */
+        if (c->map.link.prev && c->map.link.next)
+            wl_list_remove(&c->map.link);
+        if (c->unmap.link.prev && c->unmap.link.next)
+            wl_list_remove(&c->unmap.link);
+    } else
 #endif
-	{
-		wl_list_remove(&c->commit.link);
-		wl_list_remove(&c->map.link);
-		wl_list_remove(&c->unmap.link);
-	}
-	free(c);
+    {
+        wl_list_remove(&c->commit.link);
+        wl_list_remove(&c->map.link);
+        wl_list_remove(&c->unmap.link);
+    }
+    free(c);
 }
 
 void
@@ -3579,8 +3592,7 @@ setup(void)
 	wlr_viewporter_create(dpy);
 	wlr_single_pixel_buffer_manager_v1_create(dpy);
 	wlr_fractional_scale_manager_v1_create(dpy, 1);
-	/* wlroots 0.19: presentation now takes an explicit protocol version */
-	(void)wlr_presentation_create(dpy, backend, 1);
+    wlr_presentation_create(dpy, backend, 1);
 	wlr_alpha_modifier_v1_create(dpy);
 
 	/* Initializes the interface used to implement urgency hints */
@@ -4567,9 +4579,12 @@ createnotifyx11(struct wl_listener *listener, void *data)
 void
 dissociatex11(struct wl_listener *listener, void *data)
 {
-	Client *c = wl_container_of(listener, c, dissociate);
-	wl_list_remove(&c->map.link);
-	wl_list_remove(&c->unmap.link);
+    Client *c = wl_container_of(listener, c, dissociate);
+    /* Guard against cases where associate never ran and links are unset */
+    if (c->map.link.prev && c->map.link.next)
+        wl_list_remove(&c->map.link);
+    if (c->unmap.link.prev && c->unmap.link.next)
+        wl_list_remove(&c->unmap.link);
 }
 
 xcb_atom_t
@@ -4588,16 +4603,22 @@ getatom(xcb_connection_t *xc, const char *name)
 void
 sethints(struct wl_listener *listener, void *data)
 {
-	Client *c = wl_container_of(listener, c, set_hints);
-	struct wlr_surface *surface = client_surface(c);
-	if (c == focustop(selmon))
-		return;
+    Client *c = wl_container_of(listener, c, set_hints);
+    struct wlr_surface *surface = client_surface(c);
+    if (c == focustop(selmon))
+        return;
 
-	c->isurgent = xcb_icccm_wm_hints_get_urgency(c->surface.xwayland->hints);
-	drawbars();
+    /* XWayland surfaces can race destroy/unmap; validate pointers */
+    if (!c->surface.xwayland || !surface || !c->surface.xwayland->hints) {
+        wlr_log(WLR_DEBUG, "sethints skipped: invalid XWayland hints/surface");
+        return;
+    }
 
-	if (c->isurgent && surface && surface->mapped)
-		client_set_border_color(c, (float[])COLOR(colors[SchemeUrg][ColBorder]));
+    c->isurgent = xcb_icccm_wm_hints_get_urgency(c->surface.xwayland->hints);
+    drawbars();
+
+    if (c->isurgent && surface && surface->mapped)
+        client_set_border_color(c, (float[])COLOR(colors[SchemeUrg][ColBorder]));
 }
 
 void

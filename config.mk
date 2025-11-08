@@ -8,10 +8,10 @@ PREFIX = /usr/local
 MANDIR = $(PREFIX)/share/man
 DATADIR = $(PREFIX)/share
 
-#XWAYLAND =
-#XLIBS =
+XWAYLAND =
+XLIBS =
 # Uncomment to build XWayland support
-XWAYLAND = -DXWAYLAND
-XLIBS = xcb xcb-icccm xcb-util xcb-cursor xcb-keysyms #xcb-util-wm 
+#XWAYLAND = -DXWAYLAND
+#XLIBS = xcb xcb-icccm xcb-util xcb-cursor xcb-keysyms #xcb-util-wm 
 
 CC = tcc
