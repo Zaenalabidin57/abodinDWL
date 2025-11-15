@@ -74,11 +74,11 @@ static const Env envs[] = {
 /* Autostart */
 static const char *const autostart[] = {
         //"sh", "-c" , "swaybg -i ~/Pictures/wollpeper/ogata_rina.jpg -m fill", NULL,
-        "sh", "-c" , "swaybg -i ~/Pictures/wollpeper/dorakula.jpg -m fill", NULL,
+        "sh", "-c" , "swaybg -i ~/Pictures/Wallpapers/dorakula.jpg -m fill", NULL,
         "sh", "-c", "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
         "sh", "-c", "gnome-keyring-daemon --start --components=gpg,pkcs11,secrets,ssh", NULL,
         //"sh", "-c", "/usr/bin/lxpolkit", NULL,
-        "sh", "-c" , "dunst", NULL,
+        "sh", "-c" , "swaync", NULL,
         "sh", "-c" , "wl-paste --watch cliphist store", NULL,
         "sh", "-c" , "/usr/bin/kdeconnectd", NULL,
         "sh", "-c" , "/usr/bin/kdeconnect-indicator", NULL,
@@ -96,9 +96,9 @@ static const char *const autostart[] = {
 
 static const Menu menus[] = {
 	/* command                            feed function        action function */
-	{ "bemenu -i -l 10 -p Windows",        menuwinfeed,         menuwinaction    },
-	{ "bemenu -i -p Layouts",              menulayoutfeed,      menulayoutaction },
-	{ "bemenu -i -l 10  -p Rules",  menurulefeed,        menuruleaction },
+	{ "bemenu -b -i -l 10 --fn 'AbudinCode:Size=10' -p Windows",        menuwinfeed,         menuwinaction    },
+	{ "bemenu -b -i --fn 'AbudinCode:Size=10' -p Layouts",              menulayoutfeed,      menulayoutaction },
+	{ "bemenu -b -i --fn 'AbudinCode:Size=10' -l 10  -p Rules",  menurulefeed,        menuruleaction },
 };
 
 
@@ -140,7 +140,7 @@ static const Layout layouts[] = {
 /* NOTE: ALWAYS add a fallback rule, even if you are completely sure it won't be used */
 static const MonitorRule monrules[] = {
 	/* name       mfact  nmaster scale layout       rotate/reflect                x    y */
-	{ "eDP-1",    0.5f,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
+	{ "eDP-1",    0.6f,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
 	{ "HDMI-A-1",    0.5f,  1,      0.6f,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1, -1  },
 };
 
@@ -227,9 +227,9 @@ static const int cursor_timeout = 5;
 
 /* commands */
 //static const char *termcmd[] = { "ghostty", NULL };
-static const char *termcmd[] = { "st", NULL };
+static const char *termcmd[] = { "foot", NULL };
 //static const char *skrinsut[] = {"sh", "-c", "/home/shigure/.config/labwc/skinshut.sh", NULL};
-static const char *dmenucmd[] = {"sh", "-c", "rofi -dmenu", NULL };
+static const char *dmenucmd[] = {"sh", "-c", "bemenu -b -i --fn 'AbudinCode:Size=10' -l 10 ", NULL };
 
 #include "shiftview.c"
 
@@ -248,7 +248,7 @@ static const Key keys[] = {
 	{0,				XKB_KEY_XF86MonBrightnessDown,	spawn,	{.v = light_down}},
 
 	//{ MODKEY,                    XKB_KEY_d,          spawn,          {.v = menucmd} },
-	{ MODKEY,                    XKB_KEY_d,          spawn,          SHCMD("rofi -show drun")},
+	{ MODKEY,                    XKB_KEY_d,          spawn,          SHCMD("bemenu-apps")},
 	{ MODKEY,                    XKB_KEY_t,          spawn,          SHCMD("todo")},
 	{ MODKEY, XKB_KEY_Return,     spawn,          {.v = termcmd} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return,     spawn,          SHCMD("foot --app-id=prostat") },
@@ -259,12 +259,12 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_J,          movestack,     {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
-  { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("qutebrowser")},
-  { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("st -e yazi")},
+  { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("zen-browser")},
+  { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("foot -e yazi")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_N,  spawn,            SHCMD("thunar")},
   { 0,                          XKB_KEY_Print,  spawn,            SHCMD("skinsut")},
-  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("st -e /home/shigure/exit.sh")},
-  { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
+  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("foot -e /home/shigure/exit.sh")},
+  { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | bemenu -b -i -l 10 --fn 'AbudinCode:Size=10' -p Cliphist | cliphist decode | wl-copy")},
   { MODKEY,                           XKB_KEY_w,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  menu,            {.v = &menus[2]}},
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },
