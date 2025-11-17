@@ -260,7 +260,7 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_J,          movestack,     {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
-  { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("zen-browser")},
+  { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("qutebrowser")},
   { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("foot -e yazi")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_N,  spawn,            SHCMD("thunar")},
   { 0,                          XKB_KEY_Print,  spawn,            SHCMD("skinsut")},
