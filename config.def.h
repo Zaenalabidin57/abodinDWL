@@ -20,7 +20,7 @@ static const int showbar                   = 1; /* 0 means no bar */
 static const int topbar                    = 0; /* 0 means bottom bar */
 static const int vertpad                   = 5; /* vertical padding of bar */
 static const int follow                     = 1;
-static const int sidepad                   = 10; /* horizontal padding of bar */
+static const int sidepad                   = 50; /* horizontal padding of bar */
 static const int user_bh		   = 30; /* 0 means that dwl will calculate barheight, >= 1 means dwl will use user_bh as the bar height. */
 static const char *fonts[]                 = {"Monocraft Nerd Font:style:Light:size=11"};
 static const float rootcolor[]             = COLOR(0x0009090E);
@@ -44,7 +44,9 @@ static uint32_t colors[][3]                = {
 	/*               fg          bg          border    */
 	/*[SchemeNorm] = { 0x6e738d96, 0xcad3f5ff, 0x444444ff },*/
 	[SchemeNorm] = { 0xDD7EA9ff, 0x1e1d2dff, 0x0c161fff },
-	[SchemeSel]  = { 0xDD7EA9ff, 0x560e1aff, 0xce0a14ff },
+	//[SchemeNorm] = { 0xDD7EA9ff, 0x1e1d2dff, 0x0c161fff },
+	//[SchemeSel]  = { 0xDD7EA9ff, 0x560e1aff, 0xce0a14ff },
+	[SchemeSel]  = { 0xDD7EA9ff, 0x560e1a00, 0xce0a14ff },
 	//[SchemeSel]  = { 0x282737ff, 0x202f61ff, 0x005577ff },
 	[SchemeUrg]  = { 0,          0,          0x770000ff },
 };
@@ -75,20 +77,23 @@ static const Env envs[] = {
 /* Autostart */
 static const char *const autostart[] = {
         //"sh", "-c" , "swaybg -i ~/Pictures/wollpeper/ogata_rina.jpg -m fill", NULL,
-        "sh", "-c" , "swaybg -i ~/Pictures/Wallpapers/dorakula.jpg -m fill", NULL,
+        "sh", "-c" , "swaybg -i ~/Pictures/wollpeper/jo.jpg -m fill", NULL,
         "sh", "-c", "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1", NULL,
         "sh", "-c", "gnome-keyring-daemon --start --components=gpg,pkcs11,secrets,ssh", NULL,
         //"sh", "-c", "/usr/bin/lxpolkit", NULL,
         "sh", "-c" , "swaync", NULL,
         "sh", "-c" , "wl-paste --watch cliphist store", NULL,
-        "sh", "-c" , "/usr/bin/kdeconnectd", NULL,
-        "sh", "-c" , "/usr/bin/kdeconnect-indicator", NULL,
         //"sh", "-c" , "/home/shigure/.config/scripts/abodindwl/wlranjeng.sh", NULL,
         //"sh", "-c" , "/home/shigure/.config/scripts/abodindwl/turu.sh", NULL,
-        //"sh", "-c" , "foot -s", NULL,
-        "sh", "-c" , "wayland-pipewire-idle-inhibit", NULL,
-        "sh", "-c" , "/usr/lib/xdg-desktop-portal -r", NULL,
-        "sh", "-c" , "/usr/lib/xdg-desktop-portal-wlr -r", NULL,
+        "sh", "-c" , "foot -s", NULL,
+        //"sh", "-c" , "/usr/bin/pipewire", NULL,
+        //"sh", "-c" , "/usr/bin/pipewire-pulse", NULL,
+        "sh", "-c" , "/usr/bin/kdeconnectd", NULL,
+        "sh", "-c" , "/usr/bin/kdeconnect-indicator", NULL,
+        //"sh", "-c" , "/usr/bin/wireplumber", NULL,
+        //"sh", "-c" , "wayland-pipewire-idle-inhibit", NULL,
+        "sh", "-c" , "/usr/libexec/xdg-desktop-portal -r", NULL,
+        "sh", "-c" , "/usr/libexec/xdg-desktop-portal-wlr -r", NULL,
         //"sh", "-c" , "xwayland-satellite", NULL,
         "sh", "-c" , "activate-linux -d", NULL,
         NULL /* terminate */
@@ -97,9 +102,12 @@ static const char *const autostart[] = {
 
 static const Menu menus[] = {
 	/* command                            feed function        action function */
-	{ "bemenu -b -i -l 10 --fn 'AbudinCode:Size=10' -p Windows",        menuwinfeed,         menuwinaction    },
-	{ "bemenu -b -i --fn 'AbudinCode:Size=10' -p Layouts",              menulayoutfeed,      menulayoutaction },
-	{ "bemenu -b -i --fn 'AbudinCode:Size=10' -l 10  -p Rules",  menurulefeed,        menuruleaction },
+	//{ "bemenu -b -i -l 10 --fn 'AbudinCode 10' -p Windows",        menuwinfeed,         menuwinaction    },
+	//{ "bemenu -b -i --fn 'AbudinCode 10' -p Layouts",              menulayoutfeed,      menulayoutaction },
+	//{ "bemenu -b -i --fn 'AbudinCode 10' -l 10  -p Rules",  menurulefeed,        menuruleaction },
+	{ "rofi -dmenu",        menuwinfeed,         menuwinaction    },
+	{ "rofi -dmenu",            menulayoutfeed,      menulayoutaction },
+	{ "rofi -dmenu ",  menurulefeed,        menuruleaction },
 };
 
 
@@ -109,6 +117,7 @@ static const Rule rules[] = {
 	/* examples: */
   { "foot",            NULL,       0,                       0,         1,        1,           -1 },
   { "prostat",            NULL,       0,                       1,         1,        1,           -1 },
+  { "btop-monitor",            NULL,       0,                       1,         1,        1,           -1 },
   { "ghostty",            NULL,       0,                       0,         1,        1,           -1 },
   { "St",            NULL,       0,                       0,         1,        1,           -1 },
   { "Thunar",            NULL,       0,                       0,         1,        1,           -1 },
@@ -156,13 +165,13 @@ static const struct xkb_rule_names xkb_rules = {
 };
 
 static const int repeat_rate = 25;
-static const int repeat_delay = 200;
+static const int repeat_delay = 150;
 
 /* Trackpad */
 static const int tap_to_click = 1;
 static const int tap_and_drag = 1;
 static const int drag_lock = 1;
-static const int natural_scrolling = 0;
+static const int natural_scrolling = 1;
 static const int disable_while_typing = 1;
 static const int left_handed = 0;
 static const int middle_button_emulation = 0;
@@ -228,9 +237,10 @@ static const int cursor_timeout = 5;
 
 /* commands */
 //static const char *termcmd[] = { "ghostty", NULL };
-static const char *termcmd[] = { "foot", NULL };
+static const char *termcmd[] = { "footclient", NULL };
 //static const char *skrinsut[] = {"sh", "-c", "/home/shigure/.config/labwc/skinshut.sh", NULL};
-static const char *dmenucmd[] = {"sh", "-c", "bemenu -b -i --fn 'AbudinCode:Size=10' -l 10 ", NULL };
+//static const char *dmenucmd[] = {"sh", "-c", "bemenu -b -i --fn 'AbudinCode 10' -l 10 ", NULL };
+static const char *dmenucmd[] = {"sh", "-c", "rofi -dmenu", NULL };
 
 #include "shiftview.c"
 
@@ -249,24 +259,29 @@ static const Key keys[] = {
 	{0,				XKB_KEY_XF86MonBrightnessDown,	spawn,	{.v = light_down}},
 
 	//{ MODKEY,                    XKB_KEY_d,          spawn,          {.v = menucmd} },
-	{ MODKEY,                    XKB_KEY_d,          spawn,          SHCMD("bemenu-apps")},
+	{ MODKEY,                    XKB_KEY_d,          spawn,          SHCMD("rofi -show drun")},
 	{ MODKEY,                    XKB_KEY_t,          spawn,          SHCMD("todo")},
 	{ MODKEY, XKB_KEY_Return,     spawn,          {.v = termcmd} },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return,     spawn,          SHCMD("foot --app-id=prostat") },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return,     spawn,          SHCMD("footclient --app-id=prostat") },
+	{ WLR_MODIFIER_CTRL|WLR_MODIFIER_SHIFT, XKB_KEY_Escape,     spawn,          SHCMD("footclient --app-id=btop-monitor -e btop") },
 	{ MODKEY, XKB_KEY_p,     togglebar,          {0} },
 	{ MODKEY, XKB_KEY_semicolon,     togglebar,          {0} },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_P,     spawn,          SHCMD("swaylock --screenshots --clock --indicator --indicator-radius 100 --indicator-thickness 7 --effect-blur 7x5 --effect-vignette 0.5:0.5 --ring-color bb00cc --key-hl-color 880033 --line-color 00000000 --inside-color 00000088 --separator-color 00000000 --grace 2 --fade-in 0.2")},
+//{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_P,     spawn,          SHCMD("swaylock --screenshots --clock --indicator --indicator-radius 100 --indicator-thickness 7 --effect-blur 7x5 --effect-vignette 0.5:0.5 --ring-color bb00cc --key-hl-color 880033 --line-color 00000000 --inside-color 00000088 --separator-color 00000000 --grace 2 --fade-in 0.2")},
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_P,     spawn,          SHCMD("swaylock")},
+	{ MODKEY|WLR_MODIFIER_ALT, XKB_KEY_P,     spawn,          SHCMD("loginctl hibernate")},
 	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_J,          movestack,     {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_K,          movestack,     {.i = -1} },
-  { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("qutebrowser")},
-  { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("foot -e yazi")},
+  { MODKEY,                           XKB_KEY_o,  spawn,            SHCMD("firefox")},
+  { MODKEY,                           XKB_KEY_n,  spawn,            SHCMD("footclient -e yazi")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_N,  spawn,            SHCMD("thunar")},
   { 0,                          XKB_KEY_Print,  spawn,            SHCMD("skinsut")},
-  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("foot -e /home/shigure/exit.sh")},
-  { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | bemenu -b -i -l 10 --fn 'AbudinCode:Size=10' -p Cliphist | cliphist decode | wl-copy")},
-  { MODKEY,                           XKB_KEY_w,  spawn,            SHCMD("rofi -modi emoji -show emoji")},
+  { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_E,  spawn,            SHCMD("footclient -e /home/shigure/exit.sh")},
+  //{ MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | bemenu -b -i -l 10 --fn 'AbudinCode 10' -p Cliphist | cliphist decode | wl-copy")},
+  { MODKEY,                           XKB_KEY_y,  spawn,            SHCMD("cliphist list | rofi -dmenu | cliphist decode | wl-copy")},
+  //{ MODKEY,                           XKB_KEY_w,  spawn,            SHCMD("bemenu-emoji")},
+  { MODKEY,                           XKB_KEY_w,  spawn,            SHCMD("rofi -show emoji")},
   { MODKEY|WLR_MODIFIER_SHIFT,                           XKB_KEY_W,  menu,            {.v = &menus[2]}},
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT,                    XKB_KEY_I,          incnmaster,     {.i = -1} },
@@ -291,6 +306,7 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_a,          toggleswallow,  {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_A,          toggleautoswallow, {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_R,          togglewarpcursor, {0} },
+	{ MODKEY|WLR_MODIFIER_ALT, XKB_KEY_r,          spawn, SHCMD("wlrekord") },
 	{ MODKEY,                    XKB_KEY_0,          view,           {.ui = ~0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_parenright, tag,            {.ui = ~0} },
 	{ MODKEY,                    XKB_KEY_comma,      focusmon,       {.i = WLR_DIRECTION_LEFT} },
